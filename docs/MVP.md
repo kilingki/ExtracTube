@@ -1,290 +1,363 @@
 # ExtracTube MVP Specification
 
+---
+
 ## 1. Overview
 
-ExtracTube is a system that transforms YouTube videos into **structured, readable study documents**.
+ExtracTube transforms YouTube videos into **structured, readable study documents**.
 
-The goal is not simple summarization, but converting video content into a format that can be:
+The system converts video content into formats that can be:
 
 - read like a document
 - studied like notes
 - organized like a book
 
-In short:
-
-> YouTube video → structured learning document
+> YouTube video -> structured learning document
 
 ---
 
-## 2. MVP Scope
+## 2. Core Design Principle
 
-This MVP must strictly limit scope.
+ExtracTube is **not** an inference engine.
 
-### Input
+It is a:
+
+> workflow and document transformation system
+
+### Model Inference Strategy
+
+All model inference is handled externally:
+
+```text
+ExtracTube Backend
+   ↓
+External APIs (LLM / STT)
+```
+
+ExtracTube only:
+
+- prepares inputs
+- calls APIs
+- processes outputs
+
+---
+
+## 3. MVP Scope
+
+**Input**
+
 - Single YouTube video URL
 
-### Output
-- Structured study document (text / markdown)
+**Output**
+
+- Structured study document (Markdown)
 
 ---
 
-## 3. Core Pipeline
-
-The system follows a linear pipeline:
+## 4. Core Pipeline
 
 ```text
 YouTube URL
- → Extract transcript
- → Split into chunks
- → Summarize each chunk
- → Reconstruct structured document
- → Return result
-4. Included Features
-Process a single YouTube URL
-Extract transcript
-Chunk transcript into manageable units
-Summarize chunks using LLM
-Generate structured document (sections, summaries, key points)
-Render result in web UI
-5. Excluded Features (Do NOT implement)
-Multiple video processing
-Vector database
-RAG
-Reranking
-User authentication
-Persistent database
-Whisper fallback STT
-OrchEdge integration
-Search or Q&A
-Any form of navigation linked to timestamps
+  -> Extract transcript
+  -> Split into chunks
+  -> Call LLM API for summarization
+  -> Reconstruct structured document
+  -> Return result
+```
 
-This stage focuses only on document generation.
+---
 
-6. Product Goal
+## 5. Included Features
 
-The system should allow users to:
+- Process a single YouTube URL
+- Extract transcript
+- Chunk transcript into logical units
+- Call external LLM API for summarization
+- Generate structured document with:
+  - sections
+  - summaries
+  - key points
+- Render result in web UI
 
-understand the core content of a video without watching it fully
-read the content as a structured document
-quickly grasp key ideas and concepts
-7. Success Criteria
+---
+
+## 6. Excluded Features (Do NOT implement)
+
+- Multiple video processing
+- Vector database
+- RAG
+- Reranking
+- User authentication
+- Persistent database
+- Whisper STT fallback
+- OrchEdge integration
+- Search / Q&A
+- Timestamp-based navigation
+- Any internal model inference
+
+---
+
+## 7. Product Goal
+
+The system should enable users to:
+
+- understand video content without watching it fully
+- read content in structured form
+- quickly grasp key concepts
+
+---
+
+## 8. Success Criteria
 
 The MVP is successful if:
 
-User inputs a YouTube URL
-The system extracts transcript
-The transcript is processed into chunks
-Each chunk is summarized
-A structured document is generated
-The document is readable and coherent
-8. Technology Stack
-Backend
-Python
-FastAPI
-Pydantic
-Frontend
-Next.js
-React
-Tailwind CSS
-TypeScript
-YouTube Processing
-yt-dlp
-transcript extraction
-LLM
-Replaceable backend (local or API)
-Used for summarization and structuring
-9. Architecture
+- A YouTube URL can be submitted
+- Transcript is extracted
+- Transcript is chunked
+- LLM summaries are generated via API
+- A structured document is produced
+- The document is readable and coherent
+
+---
+
+## 9. Technology Stack
+
+**Backend**
+
+- Python
+- FastAPI
+- Pydantic
+
+**Frontend**
+
+- Next.js
+- React
+- Tailwind CSS
+- TypeScript
+
+**YouTube Processing**
+
+- yt-dlp
+- transcript extraction
+
+**Inference (External)**
+
+- LLM API (required)
+- STT API (optional)
+
+---
+
+## 10. Architecture
+
+```text
 Frontend (Next.js)
         ↓
 Backend API (FastAPI)
         ↓
 Processing Pipeline
+  1. YouTube Loader
+  2. Transcript Loader
+  3. Chunk Builder
+  4. LLM API Client
+  5. Document Formatter
+```
 
-1. YouTube Loader
-2. Transcript Loader
-3. Chunk Builder
-4. Summarizer
-5. Document Formatter
-10. Project Structure
+---
+
+## 11. Project Structure
+
+```text
 extracTube/
 ├─ backend/
 │  ├─ app/
-│  │  ├─ main.py
 │  │  ├─ api/
-│  │  │  └─ routes_video.py
-│  │  ├─ schemas/
-│  │  │  ├─ request.py
-│  │  │  └─ response.py
 │  │  ├─ services/
 │  │  │  ├─ youtube_service.py
 │  │  │  ├─ transcript_service.py
 │  │  │  ├─ chunk_service.py
-│  │  │  ├─ summarize_service.py
-│  │  │  └─ format_service.py
+│  │  │  ├─ document_service.py
+│  │  │  └─ inference_clients/
+│  │  │     ├─ llm_client.py
+│  │  │     └─ stt_client.py
+│  │  ├─ schemas/
 │  │  └─ core/
-│  │     └─ config.py
 │  └─ requirements.txt
-│
 ├─ frontend/
-│  ├─ app/
-│  ├─ components/
-│  │  ├─ UrlInput.tsx
-│  │  ├─ SummaryViewer.tsx
-│  │  └─ DocumentViewer.tsx
-│  ├─ lib/
-│  │  └─ api.ts
-│  └─ package.json
-│
 └─ docs/
-   └─ ExtracTube_MVP.md
-11. Data Structures
-Transcript Segment
+```
+
+---
+
+## 12. Data Structures
+
+**Transcript Segment**
+
+```json
 {
   "start": 12.5,
   "end": 25.3,
   "text": "..."
 }
-Chunk
+```
+
+**Chunk**
+
+```json
 {
   "chunk_id": 0,
   "text": "...",
-  "segments": [...]
+  "segments": []
 }
-Section Summary
+```
+
+**Section Summary**
+
+```json
 {
   "section_title": "...",
   "summary": "...",
-  "key_points": [
-    "...",
-    "..."
-  ]
+  "key_points": ["...", "..."]
 }
-Final Output
+```
+
+**Final Output**
+
+```json
 {
-  "video": {
-    "title": "...",
-    "video_id": "...",
-    "url": "..."
-  },
-  "sections": [...],
+  "video": {},
+  "sections": [],
   "document_markdown": "..."
 }
-12. Backend API
-POST /api/video/process
-Request
+```
+
+---
+
+## 13. Backend API
+
+`POST /api/video/process`
+
+**Request**
+
+```json
 {
   "url": "https://www.youtube.com/watch?v=..."
 }
-Response
+```
+
+**Response**
+
+```json
 {
-  "video": {...},
-  "sections": [...],
+  "video": {},
+  "sections": [],
   "document_markdown": "..."
 }
-13. Backend Components
-youtube_service.py
-Parse YouTube URL
-Extract video ID
-Fetch metadata
-transcript_service.py
-Load transcript
-Convert into segment list
-chunk_service.py
-Split transcript into chunks
-Maintain semantic coherence
-summarize_service.py
-Summarize each chunk
-Generate:
-title
-summary
-key points
-format_service.py
-Combine sections into a single document
-Generate markdown output
-14. Frontend Requirements
-Main Page
-Input field for YouTube URL
-Submit button
-Loading state
-Error handling
-Document Viewer
-Display structured document
-Render markdown output
-Clearly separate sections
-Summary Viewer
-Show section titles
-Show summaries
-Show key points
-15. LLM Prompt Guidelines
+```
 
-The summarization must:
+---
 
-convert spoken transcript into readable text
-remove redundancy and filler words
-preserve original meaning
-avoid hallucination
-organize information clearly
+## 14. Backend Components
 
-Output format must be structured JSON.
+`youtube_service.py`
 
-16. Implementation Order
+- Parse URL
+- Extract metadata
 
-Follow this sequence strictly:
+`transcript_service.py`
 
-Setup FastAPI server
-Setup Next.js frontend
-Implement YouTube URL parsing
-Implement transcript extraction
-Implement chunking logic
-Implement summarization
-Implement document formatting
-Connect frontend to backend
-17. Constraints
+- Load transcript
+- Convert to segments
 
-Do NOT:
+`chunk_service.py`
 
-over-engineer abstractions
-introduce unused components
-add database prematurely
-implement multi-video support
-implement RAG or retrieval
+- Build chunks
+
+`llm_client.py`
+
+- Call external LLM API
+
+`document_service.py`
+
+- Build final document
+
+---
+
+## 15. Frontend Requirements
+
+**Main Page**
+
+- URL input
+- Submit button
+- Loading / error state
+
+**Document Viewer**
+
+- Render structured document
+- Display sections clearly
+
+---
+
+## 16. LLM Requirements
+
+LLM must:
+
+- convert spoken text into readable format
+- remove redundancy
+- preserve meaning
+- avoid hallucination
+- output structured JSON
+
+---
+
+## 17. Implementation Order
+
+1. Setup FastAPI
+2. Setup Next.js
+3. Implement YouTube parsing
+4. Implement transcript extraction
+5. Implement chunking
+6. Implement LLM API client
+7. Implement document generation
+8. Connect frontend
+
+---
+
+## 18. Constraints
+
+Do **not**:
+
+- implement model inference locally
+- add unnecessary abstraction
+- introduce DB early
+- implement RAG
 
 Focus only on:
 
-Working end-to-end pipeline
+- End-to-end working pipeline
 
-18. Definition of Done
+---
 
-The MVP is complete when:
+## 19. Definition of Done
 
-A YouTube URL can be submitted
-Transcript is extracted
-Content is chunked
-Summaries are generated
-A structured document is produced
-The document is readable and coherent
-19. Future Extensions (Out of Scope)
-Multi-video aggregation
-Channel-level document generation
-Search and Q&A
-Concept graph
-Flashcards / learning tools
-Vector database
-RAG
-OrchEdge integration
-20. Summary
+- URL input works
+- Transcript extracted
+- Chunking works
+- LLM API works
+- Document generated
+- UI renders output
 
-ExtracTube MVP is defined as:
+---
 
-A system that converts a single YouTube video into a structured, readable study document.
+## 20. Summary
 
-The priority is not complexity, but:
+ExtracTube MVP is:
 
-correctness
-clarity
-working pipeline
+> A system that converts a single YouTube video into a structured study document using external model APIs.
 
-Build a simple system that works end-to-end before adding any advanced features.
+Priority:
 
+- correctness
+- clarity
+- working pipeline
 
 ---
