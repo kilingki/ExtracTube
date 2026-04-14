@@ -37,19 +37,23 @@ Frontend
 Backend (ExtracTube)
    ↓
 External Inference APIs (LLM / STT)
+```
 
 - All model inference is handled outside this repository
 - ExtracTube acts as a workflow + orchestration layer
 
+---
+
 ## Project Structure
 
+```text
 backend/
 frontend/
 docs/
+```
+
+---
 
 ## Docs
 
-See docs/MVP.md for the full MVP specification.
-
-
----
+See `docs/MVP.md` for the full MVP specification.
