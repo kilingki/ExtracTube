@@ -78,6 +78,9 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# Notebook outputs
+notebooks/outputs/
+
 # IPython
 profile_default/
 ipython_config.py
@@ -133,6 +136,9 @@ celerybeat.pid
 
 # SageMath parsed files
 *.sage.py
+
+# Backup files
+*.bak
 
 # Environments
 .env

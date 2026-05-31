@@ -1,56 +1,93 @@
 # ExtracTube Notebook Plan
 
-This directory contains the notebook-first implementation plan for ExtracTube.
+This directory contains the notebook-first MVP plan for ExtracTube.
 
-The goal of the notebook phase is to validate the full document-generation pipeline before designing any frontend or backend application structure.
+ExtracTube is not a YouTube summarizer and not an STT cleanup tool. Its goal is to reconstruct a YouTube video into a book-like reading experience:
 
-Each notebook should produce concrete artifacts that can be saved, inspected, and reused by later notebooks. The intended direction is to move from raw YouTube STT to intermediate representations, then to evidence-based section writing and global revision.
+> Instead of directly consuming a YouTube video, the user should be able to read the material as a reconstructed book.
+
+The final output should satisfy these conditions:
+
+```text
+1. It is not a chronological listing of the video.
+2. It is not a simple summary.
+3. It is not a cleaned-up STT transcript.
+4. It can be understood by a reader starting from the beginning.
+5. It has a book-like table of contents and narrative flow.
+```
+
+## MVP Pipeline
+
+The current ExtracTube MVP should stay focused on five essential stages:
+
+```text
+01_STT
+02_Segment Generation
+03_Knowledge Map
+04_Outline Generation
+05_Book Writing
+```
+
+In one line:
+
+```text
+YouTube STT
+  -> standalone segment generation
+  -> knowledge map construction
+  -> book outline generation
+  -> book writing
+```
+
+Anything below this tends to become a summarizer or lecture-note generator. Anything much larger than this is likely to become over-engineered before the core book-generation workflow is proven.
+
+The five stages are not equally difficult:
+
+```text
+01 STT                *
+02 Segment Generation *****
+03 Knowledge Map      ****
+04 Outline Generation **
+05 Book Writing       *****
+```
+
+For the MVP, the highest-risk stages are `02_segment_generation.ipynb` and `05_book_writing.ipynb`. In particular, the whole pipeline depends on whether a 30-60 minute YouTube lecture can become a set of independently understandable segments. If that fails, the knowledge map, outline, and final book will all inherit the same ambiguity.
 
 ## Naming Convention
 
 Use numbered notebooks so the implementation order is clear:
 
 ```text
-00_stt_ingestion.ipynb
-01_transcript_chunking.ipynb
-02_decontextualization.ipynb
-03_segment_structuring.ipynb
-04_topic_graph.ipynb
-05_outline_generation.ipynb
-06_book_blueprint.ipynb
-07_leaf_evidence_packs.ipynb
-08_leaf_writing.ipynb
-09_chapter_stitching.ipynb
-10_global_consistency.ipynb
+01_stt.ipynb
+02_segment_generation.ipynb
+03_knowledge_map.ipynb
+04_outline_generation.ipynb
+05_book_writing.ipynb
 ```
 
-The current `stt_test.ipynb` is an early STT test notebook. It should eventually be renamed or folded into `00_stt_ingestion.ipynb` after the ingestion flow stabilizes.
+Existing exploratory notebooks such as `stt_test.ipynb`, `00_stt_ingestion.ipynb`, and `01_transcript_chunking.ipynb` can be kept during prototyping, but the stable MVP plan should converge on the five-stage structure above.
 
 ## Suggested Artifact Layout
 
-During notebook prototyping, write intermediate outputs to a local ignored directory such as:
+Each notebook should write concrete artifacts that can be inspected and reused by later notebooks.
 
 ```text
 artifacts/
   raw/
-  chunks/
   segments/
-  graphs/
+  knowledge_maps/
   outlines/
-  blueprints/
-  evidence_packs/
   drafts/
   final/
 ```
 
-Each notebook should read from the previous stage and write a new artifact. This makes the pipeline restartable and easier to debug.
+The pipeline should be restartable from any major stage. Prefer JSON for machine-readable artifacts and Markdown for human review.
 
-## 00_stt_ingestion.ipynb
+## 01_stt.ipynb
 
 Purpose:
 
 - Download or load YouTube audio.
-- Send audio to the local STT server.
+- Send audio to the STT system.
 - Normalize the STT response into a stable transcript format.
 - Preserve timestamps when available.
 
@@ -69,25 +106,40 @@ artifacts/raw/transcript.json
 artifacts/raw/transcript.txt
 ```
 
-Implementation notes:
-
-- Keep the existing Qwen3-ASR / vLLM server test logic here.
-- Separate audio download, transcription request, and transcript cleanup into reusable functions.
-- Store both the raw STT response and cleaned text.
-- Preserve segment-level timestamps for later evidence tracing.
-
 Success criteria:
 
 - A single YouTube URL can be converted into a clean transcript.
-- The raw response and cleaned transcript are both saved.
-- The notebook can be rerun without manually copying output between cells.
+- The raw STT response and normalized transcript are both saved.
+- Timestamp or source-span information is preserved when available.
 
-## 01_transcript_chunking.ipynb
+## 02_segment_generation.ipynb
 
 Purpose:
 
-- Split the cleaned transcript into chunks suitable for local-context LLM calls.
-- Use mechanical chunking first, then apply semantic adjustment.
+- Convert the STT transcript into standalone, independently understandable segments.
+- Restore missing context from spoken language.
+- Resolve vague references, pronouns, implied subjects, and context-dependent phrases.
+- Attach useful metadata for later mapping and writing.
+
+This stage intentionally absorbs the older implementation details:
+
+```text
+chunking
++ decontextualization
++ segment structuring
+```
+
+Chunking may still be necessary to fit local LLM context limits, but it is not the conceptual output of the stage. The conceptual output is a set of standalone segments.
+
+Example:
+
+```text
+Before:
+"That is what you use when the previous method does not work."
+
+After:
+"Retrieval-Augmented Generation, or RAG, is a method for generating answers by searching external documents when a model cannot answer reliably from its internal knowledge alone."
+```
 
 Inputs:
 
@@ -99,40 +151,7 @@ artifacts/raw/transcript.txt
 Outputs:
 
 ```text
-artifacts/chunks/mechanical_chunks.json
-artifacts/chunks/semantic_chunks.json
-```
-
-Implementation notes:
-
-- Start with token- or character-based chunking with overlap.
-- Keep timestamp ranges if the transcript has timestamps.
-- Add overlap to reduce boundary context loss.
-- Add a semantic pass that adjusts boundaries around topic changes, pauses, or sentence breaks.
-
-Success criteria:
-
-- Chunks are small enough for the target local LLM context.
-- Each chunk includes source offsets or timestamps.
-- Boundary quality can be inspected manually.
-
-## 02_decontextualization.ipynb
-
-Purpose:
-
-- Convert each chunk into standalone semantic segments.
-- Resolve pronouns, implied subjects, vague references, and context-dependent claims.
-
-Inputs:
-
-```text
-artifacts/chunks/semantic_chunks.json
-```
-
-Outputs:
-
-```text
-artifacts/segments/decontextualized_segments.json
+artifacts/segments/segments.json
 ```
 
 Target schema:
@@ -140,8 +159,9 @@ Target schema:
 ```json
 {
   "id": "S0001",
-  "source_chunk_id": "C0001",
   "text": "...",
+  "topics": [],
+  "roles": [],
   "entities": [],
   "claims": [],
   "source_spans": [],
@@ -149,110 +169,84 @@ Target schema:
 }
 ```
 
-Implementation notes:
-
-- This is the most important notebook in the pipeline.
-- Use local context only: current chunk plus limited neighboring context.
-- Ask the LLM to produce atomic claims rather than loose summaries.
-- Preserve links back to source chunks for traceability.
-- Detect uncertain resolutions instead of hiding them.
-
 Success criteria:
 
-- Each segment can be understood without reading the original chunk.
-- Entity references are explicit.
-- Claims are structured enough to support topic assignment.
+- Each segment can be understood without reading the original transcript around it.
+- Important entities and claims are explicit.
+- Segment-to-source traceability is preserved.
+- Segments can support multiple topics when needed.
 
-## 03_segment_structuring.ipynb
+## 03_knowledge_map.ipynb
 
 Purpose:
 
-- Add metadata to decontextualized segments.
-- Assign topics, roles, entities, and confidence scores.
+- Build a topic relationship map from the generated segments.
+- Discover conceptual groupings and dependencies.
+- Preserve many-to-many links between segments and topics.
+
+This is the stage that prevents the output from simply following video order. Without it, the outline is likely to become a cleaned-up lecture timeline instead of a book structure.
+
+Although the artifact is called a `Knowledge Map`, the implementation should stay closer to a topic organization layer than a full knowledge-graph system. The goal is not to research graph modeling, node taxonomy, or edge semantics. The goal is to organize topics well enough to produce a strong book table of contents.
+
+Avoid making this stage more complex than the book-writing workflow needs. Terms such as graph, node, edge, prerequisite, and relationship are useful implementation vocabulary, but they should not pull the MVP toward a general-purpose knowledge graph.
+
+Example:
+
+```text
+RAG
+  - Vector DB
+  - Embedding
+  - Retrieval
+
+Agent
+  - Tool
+  - MCP
+  - Planning
+```
 
 Inputs:
 
 ```text
-artifacts/segments/decontextualized_segments.json
+artifacts/segments/segments.json
 ```
 
 Outputs:
 
 ```text
-artifacts/segments/structured_segments.json
+artifacts/knowledge_maps/knowledge_map.json
+artifacts/knowledge_maps/knowledge_map.md
 ```
 
 Target schema:
 
 ```json
 {
-  "segment_id": "S0001",
   "topics": [],
-  "roles": [],
-  "entities": [],
-  "claims": [],
-  "confidence": {}
+  "relationships": [],
+  "segment_topic_edges": []
 }
 ```
 
-Implementation notes:
-
-- Allow multiple topics per segment.
-- Use role labels such as `definition`, `motivation`, `example`, `procedure`, `warning`, `transition`, and `summary`.
-- Keep role assignment independent from topic assignment.
-- Track confidence separately for topics, roles, and entity resolution.
-
 Success criteria:
 
-- Segments are searchable by topic and role.
-- Multi-topic assignment is preserved.
-- Low-confidence assignments are visible for later review.
+- The map shows which segments support which topics.
+- Related, broader, narrower, and prerequisite relationships are visible.
+- Video order is no longer the main organizing structure.
+- The map remains simple enough to review manually and use directly for outline generation.
 
-## 04_topic_graph.ipynb
+## 04_outline_generation.ipynb
 
 Purpose:
 
-- Build a topic graph from structured segments.
-- Discover topic clusters and relationships bottom-up.
-
-Inputs:
-
-```text
-artifacts/segments/structured_segments.json
-```
-
-Outputs:
-
-```text
-artifacts/graphs/topic_graph.json
-artifacts/graphs/topic_clusters.json
-```
-
-Implementation notes:
-
-- Cluster similar topic labels.
-- Merge duplicate or near-duplicate topics.
-- Infer broader, narrower, and related-topic relationships.
-- Preserve segment-topic many-to-many edges.
-
-Success criteria:
-
-- The graph shows which segments support which topics.
-- Redundant topic labels are reduced.
-- Topic relationships can be inspected before outline generation.
-
-## 05_outline_generation.ipynb
-
-Purpose:
-
-- Convert the topic graph into a reader-facing book outline.
+- Convert the knowledge map into a reader-facing book outline.
 - Reorder topics into an educational and logical flow.
+- Decide parts, chapters, sections, and subsections.
 
 Inputs:
 
 ```text
-artifacts/graphs/topic_graph.json
-artifacts/graphs/topic_clusters.json
+artifacts/knowledge_maps/knowledge_map.json
+artifacts/segments/segments.json
 ```
 
 Outputs:
@@ -262,255 +256,101 @@ artifacts/outlines/book_outline.json
 artifacts/outlines/book_outline.md
 ```
 
-Implementation notes:
+Example:
 
-- Do not preserve video order by default.
-- Decide chapter, section, and subsection depth.
-- Separate prerequisite concepts from advanced concepts.
-- Keep links from outline leaves back to topic graph nodes.
+```text
+Part 1. LLM Foundations
+  Chapter 1. Transformers
+  Chapter 2. Retrieval-Augmented Generation
+
+Part 2. Agents
+  Chapter 3. Tools
+  Chapter 4. Planning
+```
 
 Success criteria:
 
-- The outline reads like a book structure, not a transcript timeline.
-- Each leaf has enough supporting evidence available.
+- The outline reads like a book table of contents, not a transcript timeline.
+- Earlier chapters introduce concepts needed by later chapters.
+- Each outline node can be linked back to supporting topics and segments.
 - The outline can be reviewed and edited manually.
 
-## 06_book_blueprint.ipynb
+## 05_book_writing.ipynb
 
 Purpose:
 
-- Create global writing constraints for the whole book.
+- Write the final book-like manuscript from the outline, knowledge map, and segments.
+- Produce readable prose with coherent flow across chapters.
+- Keep claims grounded in source segments where possible.
+
+This stage absorbs the older implementation details:
+
+```text
+book blueprint
++ evidence packs
++ leaf writing
++ chapter stitching
++ global consistency revision
+```
+
+These may still be implemented internally, but for the MVP they belong under one conceptual stage: book writing.
 
 Inputs:
 
 ```text
 artifacts/outlines/book_outline.json
-artifacts/segments/structured_segments.json
-artifacts/graphs/topic_graph.json
+artifacts/knowledge_maps/knowledge_map.json
+artifacts/segments/segments.json
 ```
 
 Outputs:
 
 ```text
-artifacts/blueprints/book_blueprint.json
-```
-
-Target schema:
-
-```json
-{
-  "target_reader": "...",
-  "writing_style": "...",
-  "global_concepts": [],
-  "terminology": {},
-  "chapter_roles": {},
-  "do_not_repeat": [],
-  "progression": "easy to advanced"
-}
-```
-
-Implementation notes:
-
-- Define audience, tone, technical depth, and terminology.
-- Decide which concepts should be introduced once and reused later.
-- Record chapter-level roles such as introduction, foundation, application, and synthesis.
-- Use this blueprint as a constraint for all later writing prompts.
-
-Success criteria:
-
-- The blueprint can guide independent section writing.
-- Terminology and progression rules are explicit.
-- Repetition constraints are clear enough to apply later.
-
-## 07_leaf_evidence_packs.ipynb
-
-Purpose:
-
-- Build a compact evidence pack for each outline leaf.
-
-Inputs:
-
-```text
-artifacts/outlines/book_outline.json
-artifacts/blueprints/book_blueprint.json
-artifacts/segments/structured_segments.json
-artifacts/graphs/topic_graph.json
-```
-
-Outputs:
-
-```text
-artifacts/evidence_packs/leaf_evidence_packs.json
-```
-
-Target schema:
-
-```json
-{
-  "leaf_id": "L0001",
-  "leaf_title": "...",
-  "role_in_book": "...",
-  "required_prior_concepts": [],
-  "new_concepts": [],
-  "evidence_segments": [],
-  "resolved_entities": {},
-  "reuse_constraints": {}
-}
-```
-
-Implementation notes:
-
-- Select evidence by topic and role.
-- Prefer decontextualized segments over raw STT text.
-- Include only the evidence needed for the section.
-- Add constraints about what should not be repeated.
-
-Success criteria:
-
-- Each leaf can be written from its evidence pack without reading the full transcript.
-- Evidence remains traceable to original source chunks.
-- Packs are small enough for local-context writing.
-
-## 08_leaf_writing.ipynb
-
-Purpose:
-
-- Generate section-level drafts independently from evidence packs.
-
-Inputs:
-
-```text
-artifacts/evidence_packs/leaf_evidence_packs.json
-artifacts/blueprints/book_blueprint.json
-```
-
-Outputs:
-
-```text
-artifacts/drafts/leaf_drafts.json
-artifacts/drafts/leaf_drafts.md
-```
-
-Implementation notes:
-
-- Write each leaf using only its evidence pack and relevant blueprint constraints.
-- Avoid adding unsupported claims.
-- Record which evidence segments were used.
-- Keep each writing call independent and parallelizable.
-
-Success criteria:
-
-- Each leaf draft is readable as a standalone section.
-- Claims are grounded in evidence segments.
-- The writing style follows the book blueprint.
-
-## 09_chapter_stitching.ipynb
-
-Purpose:
-
-- Combine leaf drafts into coherent chapters.
-
-Inputs:
-
-```text
-artifacts/drafts/leaf_drafts.json
-artifacts/outlines/book_outline.json
-artifacts/blueprints/book_blueprint.json
-```
-
-Outputs:
-
-```text
-artifacts/drafts/chapter_drafts.json
-artifacts/drafts/chapter_drafts.md
-```
-
-Implementation notes:
-
-- Add transitions between sections.
-- Remove obvious local duplication.
-- Ensure chapter introductions and conclusions match chapter roles.
-- Keep changes traceable to leaf drafts where possible.
-
-Success criteria:
-
-- Chapters read as continuous prose.
-- Section transitions are natural.
-- Local repetition is reduced.
-
-## 10_global_consistency.ipynb
-
-Purpose:
-
-- Revise the full manuscript for global coherence.
-
-Inputs:
-
-```text
-artifacts/drafts/chapter_drafts.json
-artifacts/blueprints/book_blueprint.json
-```
-
-Outputs:
-
-```text
+artifacts/drafts/book_draft.md
 artifacts/final/book.md
-artifacts/final/revision_report.json
 ```
-
-Implementation notes:
-
-- Normalize terminology across chapters.
-- Remove repeated explanations.
-- Check difficulty progression.
-- Detect contradictions between chapters.
-- Produce a revision report that explains what changed.
 
 Success criteria:
 
-- The final manuscript follows the blueprint.
-- Terminology is consistent.
-- Repetition and contradictions are explicitly checked.
+- The manuscript can be read from the beginning without watching the video.
+- The writing follows the outline rather than the video's chronological order.
+- Concepts are introduced before they are used heavily.
+- Terminology is consistent across chapters.
+- Repetition is reduced.
+- Unsupported claims are avoided.
 
-## Implementation Order
+## Why Knowledge Map Is Required
 
-Recommended first milestone:
-
-```text
-00_stt_ingestion.ipynb
-01_transcript_chunking.ipynb
-02_decontextualization.ipynb
-```
-
-This milestone proves whether raw YouTube input can become reliable semantic segments.
-
-Recommended second milestone:
+A four-stage pipeline such as:
 
 ```text
-03_segment_structuring.ipynb
-04_topic_graph.ipynb
-05_outline_generation.ipynb
-06_book_blueprint.ipynb
+STT
+  -> Segment
+  -> Outline
+  -> Writing
 ```
 
-This milestone proves whether the system can move from local segments to a global book structure.
+is missing the step that breaks the source away from video order.
 
-Recommended third milestone:
+If the system goes directly from segments to outline, it is likely to preserve the lecture sequence. That can produce a useful lecture note, but not necessarily a book.
+
+The knowledge map creates the structure needed to reorganize the material into educational order:
 
 ```text
-07_leaf_evidence_packs.ipynb
-08_leaf_writing.ipynb
-09_chapter_stitching.ipynb
-10_global_consistency.ipynb
+Segment
+  -> Knowledge Map
+  -> Outline
 ```
 
-This milestone proves whether the structured evidence can produce a readable long-form document.
+That is the point where ExtracTube becomes a book-generation system rather than a summarization system.
 
 ## Practical Notes
 
-- Keep notebooks exploratory, but keep schemas stable.
+- Keep notebooks exploratory, but keep artifact schemas stable.
 - Save every intermediate artifact.
-- Prefer JSON for machine-readable outputs and Markdown for human review.
-- Avoid coupling notebooks to a future web architecture.
-- Do not optimize for UI until the pipeline quality is proven.
-- Treat failed examples as valuable data; keep error cases and revision notes.
+- Prefer explicit source links over untraceable generated text.
+- Treat chunking as an implementation detail, not a product stage.
+- Treat `Knowledge Map` as an internal name for topic organization, not as a mandate to build a complex graph system.
+- Validate `01_stt.ipynb` and `02_segment_generation.ipynb` strongly before investing in later stages.
+- Do not optimize for UI until the notebook pipeline proves the book-generation workflow.
+- Keep failed examples and revision notes; they are useful for improving later prompts and schemas.
