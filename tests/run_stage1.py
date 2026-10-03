@@ -14,7 +14,7 @@ from typing import Any
 
 from extractube import media, sentences, store
 from extractube.errors import PipelineError
-from extractube.infer import HttpInferClient, InferResponse
+from extractube.infer import HttpInferClient, InferResponse, validate_alignment
 from extractube.pipeline import _expected_settings, run
 from extractube.settings import Settings
 
@@ -241,6 +241,71 @@ def run_id(root: Path, video_id: str, settings: Settings, client: FakeInfer, **k
         video_id=video_id,
         log=None,
         **kwargs,
+    )
+
+
+def test_alignment_validation() -> None:
+    num_samples = 16000
+    asr = asr_payload(num_samples)
+
+    def expect(name: str, fa: dict[str, Any], ok: bool) -> None:
+        kind = ""
+        try:
+            validate_alignment(asr, fa)
+        except PipelineError as exc:
+            kind = exc.kind
+        check(name, kind == ("" if ok else "validation"), kind=kind)
+
+    expect("fa_audio_matches_asr", fa_payload(num_samples), True)
+    for field, value in (("sample_rate", 8000), ("channels", 2), ("num_samples", num_samples - 1)):
+        mismatched = fa_payload(num_samples)
+        mismatched["audio"][field] = value
+        expect(f"fa_audio_{field}_mismatch", mismatched, False)
+
+    missing_audio = fa_payload(num_samples)
+    del missing_audio["audio"]
+    expect("fa_audio_missing", missing_audio, False)
+
+    not_object = fa_payload(num_samples)
+    not_object["audio"] = []
+    expect("fa_audio_not_object", not_object, False)
+
+    missing_field = fa_payload(num_samples)
+    del missing_field["audio"]["sample_rate"]
+    expect("fa_audio_field_missing", missing_field, False)
+
+    expect(
+        "fa_item_start_reversed",
+        fa_payload(
+            num_samples,
+            items=[
+                {"text": "가", "start_time": 0.5, "end_time": 0.6},
+                {"text": "나", "start_time": 0.3, "end_time": 0.4},
+            ],
+        ),
+        False,
+    )
+    expect(
+        "fa_item_end_reversed",
+        fa_payload(
+            num_samples,
+            items=[
+                {"text": "가", "start_time": 0.1, "end_time": 0.4},
+                {"text": "나", "start_time": 0.2, "end_time": 0.3},
+            ],
+        ),
+        False,
+    )
+    expect(
+        "fa_item_equal_times",
+        fa_payload(
+            num_samples,
+            items=[
+                {"text": "가", "start_time": 0.2, "end_time": 0.4},
+                {"text": "나", "start_time": 0.2, "end_time": 0.4},
+            ],
+        ),
+        True,
     )
 
 
@@ -1035,6 +1100,7 @@ def run_live(repo: Path) -> dict[str, Any]:
 def main() -> int:
     import tempfile
 
+    test_alignment_validation()
     test_sentences()
     test_video_id()
     test_cli_usage()

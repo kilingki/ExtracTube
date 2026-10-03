@@ -16,6 +16,7 @@ from extractube.settings import Settings
 
 FA_CHUNK_LIMIT_SECONDS = 180
 TIME_TOLERANCE_SECONDS = 0.001
+AUDIO_IDENTITY_FIELDS = ("sample_rate", "channels", "num_samples")
 ASR_FORM = {
     "response_format": "verbose_json",
     "include_chunks": "true",
@@ -240,11 +241,27 @@ def guard_fa_duration(payload: dict[str, Any]) -> None:
             )
 
 
+def _audio_object(payload: dict[str, Any], label: str) -> dict[str, Any]:
+    audio = payload.get("audio")
+    if not isinstance(audio, dict):
+        raise PipelineError(f"{label} audio가 객체가 아닙니다.", kind="validation")
+    return audio
+
+
+def _validate_audio_identity(asr_payload: dict[str, Any], fa_payload: dict[str, Any]) -> None:
+    asr_audio = _audio_object(asr_payload, "ASR")
+    fa_audio = _audio_object(fa_payload, "FA")
+    for field in AUDIO_IDENTITY_FIELDS:
+        if field not in asr_audio or field not in fa_audio or fa_audio[field] != asr_audio[field]:
+            raise PipelineError(f"FA audio.{field}가 ASR과 다릅니다.", kind="validation")
+
+
 def validate_alignment(asr_payload: dict[str, Any], fa_payload: dict[str, Any]) -> None:
     if fa_payload.get("time_reference") != "audio_start":
         raise PipelineError("time_reference가 audio_start가 아닙니다.", kind="validation")
     if fa_payload.get("overlap_deduplicated") is not False:
         raise PipelineError("overlap_deduplicated가 false가 아닙니다.", kind="validation")
+    _validate_audio_identity(asr_payload, fa_payload)
     asr_chunks = asr_payload.get("chunks")
     fa_chunks = fa_payload.get("chunks")
     if not isinstance(asr_chunks, list) or not isinstance(fa_chunks, list):
@@ -288,11 +305,18 @@ def validate_alignment(asr_payload: dict[str, Any], fa_payload: dict[str, Any]) 
             raise PipelineError(f"chunks[{index}] language가 없습니다.", kind="validation")
         start = start_sample / PCM_SAMPLE_RATE
         end = end_sample / PCM_SAMPLE_RATE
+        previous: tuple[float, float] | None = None
         for item in items:
-            _validate_item(index, item, start, end)
+            current = _validate_item(index, item, start, end)
+            if previous is not None and (current[0] < previous[0] or current[1] < previous[1]):
+                raise PipelineError(
+                    f"chunks[{index}] item 시간 순서가 뒤집혔습니다.",
+                    kind="validation",
+                )
+            previous = current
 
 
-def _validate_item(index: int, item: Any, start: float, end: float) -> None:
+def _validate_item(index: int, item: Any, start: float, end: float) -> tuple[float, float]:
     if not isinstance(item, dict) or not isinstance(item.get("text"), str) or item["text"] == "":
         raise PipelineError(f"chunks[{index}] item text가 비어 있습니다.", kind="validation")
     start_time = _finite_time(item.get("start_time"), f"chunks[{index}].start_time")
@@ -304,6 +328,7 @@ def _validate_item(index: int, item: Any, start: float, end: float) -> None:
             f"chunks[{index}] item 시각이 청크 구간 밖입니다.",
             kind="validation",
         )
+    return start_time, end_time
 
 
 def _finite_time(value: Any, field: str) -> float:
