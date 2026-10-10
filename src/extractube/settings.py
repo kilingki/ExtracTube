@@ -9,6 +9,7 @@ class Settings:
     infer_base_url: str = "http://127.0.0.1:8095"
     asr_model_id: str = "qwen-asr"
     fa_model_id: str = "qwen-fa"
+    language: str = "ko"
     data_root: Path = Path("data")
     timeout_seconds: float = 7200
     yt_dlp_format: str = "bv*[height<=1080]+ba/b"

@@ -25,6 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--infer-url", default="http://127.0.0.1:8095")
     run_parser.add_argument("--asr-model", default="qwen-asr")
     run_parser.add_argument("--fa-model", default="qwen-fa")
+    run_parser.add_argument("--language", choices=("ko", "en"), default="ko")
     run_parser.add_argument("--data-root", type=Path, default=Path("data"))
     run_parser.add_argument("--timeout", type=float, default=7200)
     run_parser.add_argument("--format", dest="yt_dlp_format", default="bv*[height<=1080]+ba/b")
@@ -40,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         infer_base_url=args.infer_url,
         asr_model_id=args.asr_model,
         fa_model_id=args.fa_model,
+        language=args.language,
         data_root=args.data_root,
         timeout_seconds=args.timeout,
         yt_dlp_format=args.yt_dlp_format,

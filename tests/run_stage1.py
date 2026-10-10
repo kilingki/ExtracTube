@@ -20,6 +20,7 @@ from extractube.settings import Settings
 
 ROOT = Path(__file__).resolve().parent
 REPORT_PATH = ROOT / "outputs" / "stage1_report.json"
+# Live YouTube check. Change this URL only; the work directory follows its video ID.
 LIVE_URL = "https://www.youtube.com/watch?v=cqklrHin_XA"
 CHECKS: list[dict[str, Any]] = []
 
@@ -354,6 +355,14 @@ def test_sentences() -> None:
     )
     check("sentence_decimal", len(decimal["chunks"]) == 1 and decimal["chunks"][0]["text"] == "값은 3.14이다.")
 
+    plus = sentences.convert(
+        {
+            "audio": audio,
+            "chunks": [chunk(0, 0, 16000, "S+급.", [{"text": "S급", "start_time": 0.1, "end_time": 0.4}])],
+        }
+    )
+    check("sentence_plus_kept", len(plus["chunks"]) == 1 and plus["chunks"][0]["text"] == "S+급.")
+
     ellipsis = sentences.convert(
         {
             "audio": audio,
@@ -467,7 +476,7 @@ def test_sentences() -> None:
         omitted_doc["omitted_chunks"] == [
             {"index": 0, "status": "skipped_empty_text", "start_sample": 0, "end_sample": 8000}
         ]
-        and omitted_doc["sentence_policy_id"] == "fa_sentences_c6dee6b"
+        and omitted_doc["sentence_policy_id"] == "fa_sentences_a4f1c2e"
         and omitted_doc["time_reference"] == "audio_start"
         and omitted_doc["overlap_deduplicated"] is True,
     )
@@ -729,7 +738,7 @@ def test_redirect_and_body_limit(tmp: Path) -> None:
             and b"verbose_json" in posted
             and b'name="include_chunks"' in posted
             and b'name="model"' not in posted
-            and b'name="language"' not in posted,
+            and b'name="language"\r\n\r\nko\r\n' in posted,
             requests=len(bodies),
             asr_requests=client.asr_requests,
         )
@@ -969,7 +978,7 @@ def assess_live(work: Path) -> dict[str, Any]:
     if (
         sentences_doc.get("time_reference") != "audio_start"
         or sentences_doc.get("overlap_deduplicated") is not True
-        or sentences_doc.get("sentence_policy_id") != "fa_sentences_c6dee6b"
+        or sentences_doc.get("sentence_policy_id") != "fa_sentences_a4f1c2e"
     ):
         problems.append("sentence document contract failed")
     for payload in (asr, fa, sentences_doc):
@@ -1032,7 +1041,11 @@ def assess_live(work: Path) -> dict[str, Any]:
 
 def run_live(repo: Path) -> dict[str, Any]:
     data_root = repo / "data"
-    work = data_root / "cqklrHin_XA"
+    try:
+        video_id = media.resolve_video_id(LIVE_URL, Settings(data_root=data_root))
+    except PipelineError as exc:
+        return {"ok": False, "phase": "video_id", "stderr": str(exc)}
+    work = data_root / video_id
     if work.exists():
         shutil.rmtree(work)
     cmd = [

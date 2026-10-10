@@ -49,6 +49,7 @@ class HttpInferClient:
                 ("file", "file", "source.wav", "audio/wav", wav_path.read_bytes()),
                 ("field", "response_format", ASR_FORM["response_format"]),
                 ("field", "include_chunks", ASR_FORM["include_chunks"]),
+                ("field", "language", self.settings.language),
             ],
             boundary,
         )

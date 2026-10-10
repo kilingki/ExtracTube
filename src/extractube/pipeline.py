@@ -156,7 +156,7 @@ def _expected_settings(stage: str, settings: Settings, video_id: str) -> dict[st
     if stage == "asr":
         return {
             "infer_model_id": settings.asr_model_id,
-            "form": dict(ASR_FORM),
+            "form": {**ASR_FORM, "language": settings.language},
         }
     if stage == "fa":
         return {"infer_model_id": settings.fa_model_id}
