@@ -28,7 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--language", choices=("ko", "en"), default="ko")
     run_parser.add_argument("--data-root", type=Path, default=Path("data"))
     run_parser.add_argument("--timeout", type=float, default=7200)
-    run_parser.add_argument("--format", dest="yt_dlp_format", default="bv*[height<=1080]+ba/b")
+    run_parser.add_argument("--format", dest="yt_dlp_format", default=Settings.yt_dlp_format)
     run_parser.add_argument("--merge-format", default="mp4")
     run_parser.add_argument("--max-body-bytes", type=int, default=1073741824)
     args = parser.parse_args(argv)

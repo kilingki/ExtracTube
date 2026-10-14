@@ -72,6 +72,11 @@ def _ydl_options(settings: Settings, outtmpl: str | None = None) -> dict[str, An
         "noplaylist": True,
         "format": settings.yt_dlp_format,
         "merge_output_format": settings.merge_format,
+        # No IPv6 default route here, so AAAA lookups fail with ENETUNREACH.
+        # The Python API also treats an omitted retry count as zero.
+        "source_address": "0.0.0.0",
+        "retries": 10,
+        "fragment_retries": 10,
     }
     if outtmpl is not None:
         options["outtmpl"] = outtmpl

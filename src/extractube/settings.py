@@ -12,7 +12,9 @@ class Settings:
     language: str = "ko"
     data_root: Path = Path("data")
     timeout_seconds: float = 7200
-    yt_dlp_format: str = "bv*[height<=1080]+ba/b"
+    # HTTPS only. The bare best-video selector prefers an HLS premium format that
+    # fails on this network, while the 1080p DASH formats are reachable.
+    yt_dlp_format: str = "bv*[height<=1080][protocol=https]+ba[protocol=https]/b"
     merge_format: str = "mp4"
     max_body_bytes: int = 1073741824
 
