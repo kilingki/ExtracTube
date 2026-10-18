@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "review_seed": 20261017,
+  "repeats": ["r01", "r02"],
+  "experiment_ids": ["E00", "E01", "E02", "E03", "E04", "E05", "E06", "E07", "E08", "E09", "E10", "E11", "E12"],
+  "concurrency": 1,
+  "slot_attempt_limit": 2,
+  "campaign_time_limit_seconds": 172800,
+  "request_attempts": 2,
+  "retry_wait_seconds": 30,
+  "server_probe_attempts": 3,
+  "server_probe_interval_seconds": 30,
+  "omitted_sampling_fields": ["top_p", "top_k", "min_p", "presence_penalty", "repetition_penalty", "seed"],
+  "common": {
+    "infer_base_url": "http://127.0.0.1:8095",
+    "infer_model_id": "qwen-vlm",
+    "body_model": "qwen3.8-27b",
+    "chunk_max_chars": 6000,
+    "verify_max_chars": 6000,
+    "timeout_seconds": 300
+  },
+  "inputs": {
+    "all_ids": ["7EJ-xotXiSE", "CvuE-jyg-N8", "Fw-8hZhnH3Q", "H2WN130OzLg", "bjDkfjSmXVo", "hGVL9XRU9IQ", "iEMuJiVY9Oc", "iVelddb1qQ4"],
+    "search_ids": ["Fw-8hZhnH3Q", "H2WN130OzLg", "hGVL9XRU9IQ", "iEMuJiVY9Oc"],
+    "final_only_ids": ["7EJ-xotXiSE", "CvuE-jyg-N8", "bjDkfjSmXVo", "iVelddb1qQ4"],
+    "expected_sentence_count": {
+      "all": 3355,
+      "search": 1435,
+      "final_only": 1920
+    },
+    "per_video_sentences": {
+      "7EJ-xotXiSE": 368,
+      "CvuE-jyg-N8": 826,
+      "Fw-8hZhnH3Q": 217,
+      "H2WN130OzLg": 411,
+      "bjDkfjSmXVo": 328,
+      "hGVL9XRU9IQ": 362,
+      "iEMuJiVY9Oc": 445,
+      "iVelddb1qQ4": 398
+    }
+  },
+  "fixed_review": [
+    {"video_id": "Fw-8hZhnH3Q", "sentence_index": 102, "tag": "fixed"},
+    {"video_id": "Fw-8hZhnH3Q", "sentence_index": 112, "tag": "fixed"},
+    {"video_id": "iEMuJiVY9Oc", "sentence_index": 264, "tag": "fixed"},
+    {"video_id": "iEMuJiVY9Oc", "sentence_index": 278, "tag": "fixed"}
+  ],
+  "confirm_uncertain_review": [
+    {"video_id": "CvuE-jyg-N8", "sentence_index": 549, "tag": "uncertain_confirm"},
+    {"video_id": "CvuE-jyg-N8", "sentence_index": 560, "tag": "uncertain_confirm"}
+  ],
+  "experiments": [
+    {"experiment_id": "E00", "baseline": null, "changed_keys": [], "verify_prompt_id": "P0", "conflict_prompt_id": "C2", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E01", "baseline": "E00", "changed_keys": ["verify_prompt_id"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E02", "baseline": "E01", "changed_keys": ["verify_full_max_sentences", "verify_window_sentences", "verify_excerpt_max_sentences"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 48, "verify_window_sentences": 24, "verify_excerpt_max_sentences": 48, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E03", "baseline": "E01", "changed_keys": ["chunk_max_sentences"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 80, "overlap_sentences": 8, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E04", "baseline": "E03", "changed_keys": ["overlap_sentences"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 80, "overlap_sentences": 16, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E05", "baseline": "E01", "changed_keys": ["overlap_sentences"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 40, "overlap_sentences": 16, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E06", "baseline": "E01", "changed_keys": ["conflict_context_sentences"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 2, "conflict_context_sentences": 16, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E07", "baseline": "E01", "changed_keys": ["conflict_prompt_id", "near_distance"], "verify_prompt_id": "P1", "conflict_prompt_id": "C1", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 1, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E08", "baseline": "E01", "changed_keys": ["conflict_prompt_id", "near_distance"], "verify_prompt_id": "P1", "conflict_prompt_id": "C3", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 3, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E09", "baseline": "E01", "changed_keys": ["max_tokens_boundary", "max_tokens_conflict", "max_tokens_verify"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 2048, "max_tokens_conflict": 2048, "max_tokens_verify": 256},
+    {"experiment_id": "E10", "baseline": "E01", "changed_keys": ["temperature"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0.2, "enable_thinking": false, "max_tokens_boundary": 4096, "max_tokens_conflict": 4096, "max_tokens_verify": 4096},
+    {"experiment_id": "E11", "baseline": "E01", "changed_keys": ["max_tokens_boundary", "max_tokens_conflict", "max_tokens_verify"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": false, "max_tokens_boundary": 8192, "max_tokens_conflict": 8192, "max_tokens_verify": 8192},
+    {"experiment_id": "E12", "baseline": "E11", "changed_keys": ["enable_thinking"], "verify_prompt_id": "P1", "conflict_prompt_id": "C2", "chunk_max_sentences": 40, "overlap_sentences": 8, "near_distance": 2, "conflict_context_sentences": 8, "verify_full_max_sentences": 40, "verify_window_sentences": 12, "verify_excerpt_max_sentences": 24, "temperature": 0, "enable_thinking": true, "max_tokens_boundary": 8192, "max_tokens_conflict": 8192, "max_tokens_verify": 8192}
+  ]
+}
