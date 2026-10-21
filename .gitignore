@@ -45,3 +45,4 @@ data/
 tests/outputs/
 tests/T1/outputs/
 tests/T1_sweep/campaigns/
+tests/T2/runs/
