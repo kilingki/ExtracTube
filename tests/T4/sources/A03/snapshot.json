@@ -1,0 +1,111 @@
+{
+  "config_id": "A03",
+  "run_id": "20261025T102022Z_e5bd7d",
+  "manifest_sha256": "761bbfe50ba1ce7861e9908dcd120e8bd4522a8c7707a7729899079cb15dfd97",
+  "code": [
+    {
+      "path": "tests/T4/prompts.py",
+      "sha256": "7816df7085b0d5006ee280b886fe70df0bcbbc65f09a33b9adba7ff94974e70b"
+    },
+    {
+      "path": "tests/T4/extract.py",
+      "sha256": "c93c62a4e0c16a1f929d22e471c39f256ec9b445ef64d17081f6f6be7aa553ff"
+    },
+    {
+      "path": "tests/T4/review.py",
+      "sha256": "2fe9a626f9bd6914a51707c11fd60c1d7b3e3819af921feac2d95be94f333eaa"
+    },
+    {
+      "path": "tests/T4/run_t4.py",
+      "sha256": "608f883e5b7bc66bccb6b1cd919faecc7f67386dfe3b81f1cacbc047076134ba"
+    }
+  ],
+  "protected_records": [
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/manifest.json",
+      "sha256": "761bbfe50ba1ce7861e9908dcd120e8bd4522a8c7707a7729899079cb15dfd97"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/run.json",
+      "sha256": "d05bc5a9e53e4ea2f3a738d7ac3cd4d3e2e93c7d931783e520ba3418eec5a569"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/review_decision.md",
+      "sha256": "05d0d76da0694242e4a154a2fd22f93e709212f7730f501402add5e673f91215"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/pilot_audit.json",
+      "sha256": "56822bc088c05422c56c0b1024dbfbe880ead4c0a2fcc522fd7f5c0d85ee4df5"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/frames_index.json",
+      "sha256": "c3d7a821216c151703b7a063087600a3bba45584b68ab5621e8f8de1a5e1b0ce"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/validation.json",
+      "sha256": "b1736aef0e0167abb38986018ae8449cf878a33e51c481208b487b9a35856e45"
+    },
+    {
+      "path": "tests/T4/runs/20261025T071104Z_9935bf/calls/1ac9988e-6710-43fa-9296-d5f5a86b6e66.json",
+      "sha256": "9d5b22fecd94287af0eecc31ed2a792e1dd13e3ca28e599d48f74ac539f43652"
+    },
+    {
+      "path": "tests/T4/runs/20261025T071104Z_9935bf/calls/03b1eff9-348c-410c-8c5b-0b284077ee17.json",
+      "sha256": "e7572a4ffe2f8d913b493318e7678e93d11145c311f43b2f9aec9490a6f8e2b7"
+    },
+    {
+      "path": "tests/T4/runs/20261025T071104Z_9935bf/calls/d2a7417d-c6f7-4a4d-b0a1-a67c73dc12c9.json",
+      "sha256": "9f60d0d3b302eba62ba8de95a0afb8e48e2260cc4dec12ec9ff2b76c07d805b7"
+    },
+    {
+      "path": "tests/T4/reviews/20261025_a03_route_review/route_review.json",
+      "sha256": "e2c8375eb66811849129265312dc6bc8c6c797b9956c405920835a5dd946e4b9"
+    },
+    {
+      "path": "tests/T4/reviews/20261025_a03_route_review/review_retained_uncertain.json",
+      "sha256": "c2808f80c1fd6f11575249c3f168338cbe54bdef8532fd141217390918363287"
+    },
+    {
+      "path": "tests/T4/reviews/20261025_a03_route_review/review_inputs.json",
+      "sha256": "6d88bcd9293068a7b936c1dea850e4c2859663e7631ef77359c75915831eb0fa"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/7EJ-xotXiSE/selected_frames.json",
+      "sha256": "5f5727a13ade080eb28d0809a793320498cf2ca0cb516b88a83b151a97665e44"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/bjDkfjSmXVo/selected_frames.json",
+      "sha256": "026f8af2991bf3e43db6a6421e77b66cbdf49f863835da31f3da007636c8037a"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/CvuE-jyg-N8/selected_frames.json",
+      "sha256": "d3d057d31aa00f3092a08a9ba16f77b37fabf7cb00f4752f4646f7c6d6da52e1"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/Fw-8hZhnH3Q/selected_frames.json",
+      "sha256": "fcd3c9b9ab7eaddd25cb4817d5064af302d678535dfaa0a7d822ac23d0c30d0d"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/H2WN130OzLg/selected_frames.json",
+      "sha256": "7e55ef5e3cb013027475e7ba7de8f7d565d73e05b56752e933ee83c6e42095d4"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/hGVL9XRU9IQ/selected_frames.json",
+      "sha256": "950655706c60e62fe245011e60518cabf321c1debd918ac9e79c80a127c05a0a"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/iEMuJiVY9Oc/selected_frames.json",
+      "sha256": "2dc755341a7b11774e3b6403eddfc2b454c787e329f12c74d069507036c5dca8"
+    },
+    {
+      "path": "tests/T4/runs/20261025T102022Z_e5bd7d/iVelddb1qQ4/selected_frames.json",
+      "sha256": "1c8834145135e34407b0ea9b3ebf7d474c03be5e648df85e4effb193952de533"
+    }
+  ],
+  "a03_calls": {
+    "count": 253,
+    "digest_sha256": "73b0157db535ed9016894ad34c6921d3cb9c82bd9da9a2b03523a9ef070adfed",
+    "digest_input": "sorted repository-relative path, space, sha256, one file per line, trailing newline"
+  },
+  "note": "Snapshot taken before execution-control edits. Selection, prompt, resolution, and batching are unchanged. Historical run files are not rewritten."
+}

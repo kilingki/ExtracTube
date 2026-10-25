@@ -1,0 +1,3702 @@
+"""T4 A03/P1: up to four new targets per request, without context images."""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import fcntl
+import hashlib
+import json
+import math
+import os
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+import uuid
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from decimal import Decimal
+from pathlib import Path
+from typing import Any, Iterator
+
+import extract
+import prompts
+import review
+
+ROOT = Path(__file__).resolve().parents[2]
+RUNS_ROOT = ROOT / "tests" / "T4" / "runs"
+WORK_ROOT = ROOT / "tests" / "T4" / "work"
+B05_ROOT = "tests/T3/runs/20261024T175204Z_bdfca4"
+B05_MANIFEST_SHA = "33dfff0fd9b83283dd0975328178f1d20191b5e6ae239fd9c88fa6f618f6be95"
+CONFIG_ID = "A03"
+LOGIC_VERSION = "t4.frame_selection.independent_value.v1"
+SCHEMA_VERSION = "t4.selected_frames.v1"
+IMAGES_PER_REQUEST = 4
+CONTEXT_IMAGES = 0
+INPUT_FRAMES = 2698
+INPUT_SEGMENTS = 975
+A00_RUN_ID = "20261025T040900Z_131a57"
+A00_CONFIG_ID = "A00"
+A00_SOURCE_DIR = "tests/T4/sources/A00"
+A01_RUN_ID = "20261025T063158Z_083aa2"
+A01_SOURCE_DIR = "tests/T4/sources/A01"
+A02_RUN_ID = "20261025T071104Z_9935bf"
+A02_SOURCE_DIR = "tests/T4/sources/A02"
+A03_RUN_ID = "20261025T102022Z_e5bd7d"
+A03_SOURCE_DIR = "tests/T4/sources/A03"
+A03_MANIFEST_SHA256 = "761bbfe50ba1ce7861e9908dcd120e8bd4522a8c7707a7729899079cb15dfd97"
+# A03에 이미 기록된 HTTP 횟수다. 이후 작업의 전송 상한이 아니다.
+A03_HISTORICAL_HTTP_ATTEMPTS = 253
+SUCCESS_DONOR_RUNS = (A03_RUN_ID, A02_RUN_ID)
+WORK_ID = "a03_p1_remainder"
+BUDGET_SCHEMA = "t4.http_budget.v1"
+REVIEW_RETAINED_PATH = "tests/T4/reviews/20261025_a03_route_review/review_retained_uncertain.json"
+ROUTE_REVIEW_PATH = "tests/T4/reviews/20261025_a03_route_review/route_review.json"
+_REUSE_INDEX: dict[Path, dict[str, dict[str, list[Path]]]] = {}
+_A03_REUSE_LINKS: dict[str, dict[str, str]] | None = None
+_APPROVAL_LINE = re.compile(r"^approval (pilot|full) (true|false) run=([A-Za-z0-9_.:-]+) manifest=([0-9a-f]{64})$")
+INFER_URL = "http://127.0.0.1:8095/infer?model=qwen-vlm"
+INFER_MODEL_ID = "qwen-vlm"
+BODY_MODEL = "qwen3.8-27b"
+MAX_TOKENS = 4096
+TIMEOUT_SECONDS = 300
+SECOND = Decimal("0.000000001")
+CODE_FILES = [
+    "tests/T4/prompts.py",
+    "tests/T4/extract.py",
+    "tests/T4/review.py",
+    "tests/T4/run_t4.py",
+]
+CANDIDATES = [
+    ("7EJ-xotXiSE:u0:c0", "7EJ-xotXiSE/candidates/u0_c0.json", "4f4da733caa8d146a292691fa599e11065768e1ee501ce8dea62f15e18f315c1"),
+    ("7EJ-xotXiSE:u15:c0", "7EJ-xotXiSE/candidates/u15_c0.json", "26e22ebe6caee13f4777f91faa563d34c68b87429a7a885f99fc6bd4b9e20b6c"),
+    ("bjDkfjSmXVo:u12:c0", "bjDkfjSmXVo/candidates/u12_c0.json", "363e4f0950c43e34162413ac1d7f22be954aa3d61b015436287ab36e1c56e9af"),
+    ("CvuE-jyg-N8:u43:c0", "CvuE-jyg-N8/candidates/u43_c0.json", "f06f44578d1d9305ca61b8a352f7cd7d7c920256384457a25b5a2971701b02c5"),
+    ("Fw-8hZhnH3Q:u0:c0", "Fw-8hZhnH3Q/candidates/u0_c0.json", "7d7f6d3382beb970fea5af6b61c2c4b6825b0f9ce4647232f25af13c660258e2"),
+    ("H2WN130OzLg:u25:c0", "H2WN130OzLg/candidates/u25_c0.json", "1609f8bf27758c44830c055b0699cff8d571e3fc5b094de8948f0ae43ed60de1"),
+    ("H2WN130OzLg:u7:c0", "H2WN130OzLg/candidates/u7_c0.json", "77a45b3e393822e9f9db64aaeed545308d17df9af58934a506db4a7660ccdc0d"),
+    ("hGVL9XRU9IQ:u26:c0", "hGVL9XRU9IQ/candidates/u26_c0.json", "b304dd08f8b7c67e5f6c884f75be9514becb963df1398ded0bf95f2bf103d42e"),
+    ("iEMuJiVY9Oc:u12:c0", "iEMuJiVY9Oc/candidates/u12_c0.json", "3d3a88917904210a86c0fc1e27aa0ff9e24087a8c098516c49fdee992c2869ff"),
+    ("iEMuJiVY9Oc:u20:c0", "iEMuJiVY9Oc/candidates/u20_c0.json", "3b114a24a3f4adc7b7ed67285947bfddc425fc4c084fff4caa2958b72a8039bd"),
+    ("iEMuJiVY9Oc:u4:c0", "iEMuJiVY9Oc/candidates/u4_c0.json", "9056d9b9ca1061fbcc23b762ef467f10937ffea2f22b6766a089958108568285"),
+    ("iVelddb1qQ4:u17:c0", "iVelddb1qQ4/candidates/u17_c0.json", "cd3d9549234e8979fddf64bfbef558f2aaa0fef0c7ad192d02618064503099fd"),
+]
+PILOT = [
+    "CvuE-jyg-N8:u43:c0",
+    "iEMuJiVY9Oc:u4:c0",
+    "H2WN130OzLg:u25:c0",
+    "7EJ-xotXiSE:u0:c0",
+    "iEMuJiVY9Oc:u12:c0",
+    "iVelddb1qQ4:u17:c0",
+]
+SMOKE_CANDIDATE = "H2WN130OzLg:u25:c0"
+SMOKE_SAMPLE_INDEX = 1
+SMOKE_PTS = 19966608
+DECISION_KEYS = {"frame_id", "decision", "reason", "duplicate_of"}
+SELECTION = {"keep": "selected_confirmed", "uncertain": "retained_uncertain", "drop": "not_selected"}
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def sha256_bytes(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def sha256_text(text: str) -> str:
+    return sha256_bytes(text.encode("utf-8"))
+
+
+def read_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def freeze(value: Any) -> Any:
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("유한하지 않은 수치가 있습니다.")
+        return Decimal(str(value))
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ValueError("유한하지 않은 수치가 있습니다.")
+        return value
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, list):
+        return [freeze(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): freeze(item) for key, item in value.items()}
+    raise TypeError(f"JSON으로 보관할 수 없는 값입니다: {type(value).__name__}")
+
+
+def _dump(value: Any, level: int) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise TypeError("유한하지 않은 수치입니다.")
+        return format(value, "f")
+    if isinstance(value, float):
+        raise TypeError("float는 T4 JSON에 직접 쓰지 않습니다.")
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list):
+        if not value:
+            return "[]"
+        inner = ",\n".join(" " * (level + 2) + _dump(item, level + 2) for item in value)
+        return "[\n" + inner + "\n" + " " * level + "]"
+    if isinstance(value, dict):
+        if not value:
+            return "{}"
+        rows = []
+        for key, item in value.items():
+            rows.append(" " * (level + 2) + json.dumps(str(key), ensure_ascii=False) + ": " + _dump(item, level + 2))
+        return "{\n" + ",\n".join(rows) + "\n" + " " * level + "}"
+    raise TypeError(f"지원하지 않는 JSON 값입니다: {type(value).__name__}")
+
+
+def dump_text(value: Any) -> str:
+    return _dump(value, 0) + "\n"
+
+
+def json_time_base(value: Any) -> dict[str, int] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return {"numerator": int(value["numerator"]), "denominator": int(value["denominator"])}
+    numerator, denominator = value
+    return {"numerator": int(numerator), "denominator": int(denominator)}
+
+
+def compact(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise TypeError("유한하지 않은 수치입니다.")
+        return format(value, "f")
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list):
+        return "[" + ",".join(compact(item) for item in value) + "]"
+    if isinstance(value, dict):
+        return "{" + ",".join(json.dumps(str(key), ensure_ascii=False) + ":" + compact(item) for key, item in value.items()) + "}"
+    raise TypeError(f"지원하지 않는 JSON 값입니다: {type(value).__name__}")
+
+
+def canonical(value: Any) -> str:
+    return compact(_sort(value))
+
+
+def _sort(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _sort(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [_sort(item) for item in value]
+    return value
+
+
+def atomic_write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(text, encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def write_json(path: Path, payload: Any) -> None:
+    atomic_write(path, dump_text(payload))
+
+
+def atomic_write_durable(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    with temporary.open("w", encoding="utf-8") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+    directory = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def write_json_durable(path: Path, payload: Any) -> None:
+    atomic_write_durable(path, dump_text(payload))
+
+
+def budget_path(work_id: str) -> Path:
+    return WORK_ROOT / work_id / "budget.json"
+
+
+def explicit_limit(value: Any, label: str) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def build_budget(work_id: str, normal_limit: int, recovery_limit: int, historical: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": BUDGET_SCHEMA,
+        "work_id": work_id,
+        "normal_new_http_limit": normal_limit,
+        "pre_generation_recovery_limit": recovery_limit,
+        "historical_http": historical,
+        "attempts": [],
+    }
+
+
+def validate_budget(payload: Any) -> str | None:
+    if not isinstance(payload, dict):
+        return "예산 원장이 객체가 아닙니다."
+    if payload.get("schema_version") != BUDGET_SCHEMA or not isinstance(payload.get("work_id"), str) or payload["work_id"] == "":
+        return "예산 원장의 식별자가 없습니다."
+    if explicit_limit(payload.get("normal_new_http_limit"), "normal") is None:
+        return "normal_new_http_limit가 명시 정수가 아닙니다."
+    if explicit_limit(payload.get("pre_generation_recovery_limit"), "recovery") is None:
+        return "pre_generation_recovery_limit가 명시 정수가 아닙니다."
+    historical = payload.get("historical_http")
+    if not isinstance(historical, dict) or historical.get("counted_in_this_work") is not False:
+        return "과거 HTTP가 이번 작업 예산과 분리되어 있지 않습니다."
+    if isinstance(historical.get("http_attempts"), bool) or not isinstance(historical.get("http_attempts"), int):
+        return "과거 HTTP 횟수가 정수가 아닙니다."
+    if not isinstance(payload.get("attempts"), list):
+        return "attempts가 없습니다."
+    return None
+
+
+def budget_counts(payload: dict[str, Any]) -> dict[str, int]:
+    normal = 0
+    recovery = 0
+    for attempt in payload["attempts"]:
+        state = attempt.get("state")
+        kind = attempt.get("class")
+        if kind == "normal" and state in {"unknown", "completed"}:
+            normal += 1
+        elif kind == "recovery" and state in {"unknown", "completed", "pre_generation_not_sent"}:
+            recovery += 1
+    return {"normal": normal, "recovery": recovery}
+
+
+def load_budget(path: Path) -> dict[str, Any]:
+    payload = read_json(path)
+    problem = validate_budget(payload)
+    if problem:
+        raise RuntimeError(problem)
+    return payload
+
+
+def save_budget(path: Path, payload: dict[str, Any]) -> None:
+    write_json_durable(path, payload)
+
+
+@contextmanager
+def budget_lock(folder: Path) -> Iterator[None]:
+    folder.mkdir(parents=True, exist_ok=True)
+    handle = (folder / ".budget.lock").open("a+")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        handle.close()
+        raise RuntimeError("작업 예산 원장이 다른 프로세스에서 사용 중입니다.") from exc
+    try:
+        yield
+    finally:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+
+
+def historical_http_record() -> dict[str, Any]:
+    observed = read_json(RUNS_ROOT / A03_RUN_ID / "run.json")["counts"]["http_attempts"]
+    if observed != A03_HISTORICAL_HTTP_ATTEMPTS:
+        raise RuntimeError(f"A03 과거 HTTP 횟수 {observed}이 {A03_HISTORICAL_HTTP_ATTEMPTS}과 다릅니다.")
+    return {"run_id": A03_RUN_ID, "http_attempts": observed, "counted_in_this_work": False}
+
+
+def _budget_span(payload: dict[str, Any]) -> int:
+    return sum(1 for attempt in payload["attempts"] if attempt.get("state") in {"unknown", "completed", "pre_generation_not_sent"})
+
+
+def _confirmed_pre_generation(payload: dict[str, Any], reuse_key: str) -> bool:
+    return any(attempt.get("reuse_key") == reuse_key and attempt.get("state") == "pre_generation_not_sent" for attempt in payload["attempts"])
+
+
+def reserve_normal(path: Path, *, run_id: str, batch_id: str, reuse_key: str, request_sha256: str) -> dict[str, Any]:
+    with budget_lock(path.parent):
+        payload = load_budget(path)
+        counts = budget_counts(payload)
+        for attempt in payload["attempts"]:
+            if attempt.get("reuse_key") == reuse_key and attempt.get("state") == "unknown":
+                return {"result": "unknown_exists", "attempt_id": attempt.get("attempt_id"), "payload": payload}
+        span = payload["normal_new_http_limit"] + payload["pre_generation_recovery_limit"]
+        kind = "recovery" if _confirmed_pre_generation(payload, reuse_key) else "normal"
+        blocked = _budget_span(payload) >= span
+        if kind == "recovery":
+            blocked = blocked or counts["recovery"] >= payload["pre_generation_recovery_limit"]
+        else:
+            blocked = blocked or counts["normal"] >= payload["normal_new_http_limit"]
+        if blocked:
+            return {"result": "limit", "attempt_id": None, "payload": payload}
+        attempt_id = str(uuid.uuid4())
+        payload["attempts"].append({
+            "attempt_id": attempt_id,
+            "work_id": payload["work_id"],
+            "run_id": run_id,
+            "batch_id": batch_id,
+            "reuse_key": reuse_key,
+            "request_sha256": request_sha256,
+            "reserved_at": utc_now(),
+            "state": "unknown",
+            "class": kind,
+        })
+        save_budget(path, payload)
+        return {"result": "reserved", "attempt_id": attempt_id, "payload": payload}
+
+
+def update_attempt(path: Path, attempt_id: str, **fields: Any) -> dict[str, Any]:
+    with budget_lock(path.parent):
+        payload = load_budget(path)
+        for attempt in payload["attempts"]:
+            if attempt.get("attempt_id") == attempt_id:
+                attempt.update(fields)
+                save_budget(path, payload)
+                return payload
+    raise RuntimeError("예약한 전송 기록이 원장에 없습니다.")
+
+
+def reclassify_pre_generation(path: Path, attempt_id: str) -> str:
+    with budget_lock(path.parent):
+        payload = load_budget(path)
+        for attempt in payload["attempts"]:
+            if attempt.get("attempt_id") != attempt_id:
+                continue
+            if attempt.get("class") == "recovery":
+                attempt["state"] = "pre_generation_not_sent"
+                save_budget(path, payload)
+                return "retryable"
+            if budget_counts(payload)["recovery"] >= payload["pre_generation_recovery_limit"]:
+                attempt["state"] = "unknown"
+                attempt["class"] = "normal"
+                save_budget(path, payload)
+                return "exhausted"
+            attempt["state"] = "pre_generation_not_sent"
+            attempt["class"] = "recovery"
+            save_budget(path, payload)
+            return "retryable"
+    raise RuntimeError("예약한 전송 기록이 원장에 없습니다.")
+
+
+def transport_disposition(transport: dict[str, Any]) -> str:
+    status = transport.get("http_status")
+    if transport.get("generation_state") == "not_started" and status is None:
+        return "pre_generation"
+    if status is not None:
+        return "http_response"
+    return "unknown"
+
+
+def print_problem(message: str, file: str, target: str) -> None:
+    print(f"원인: {message}\n파일: {file}\n대상: {target}", flush=True)
+
+
+def rel(path: Path) -> str:
+    return path.resolve().relative_to(ROOT.resolve()).as_posix()
+
+
+@contextmanager
+def run_lock(run_dir: Path) -> Iterator[None]:
+    handle = (run_dir / ".lock").open("a+")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        handle.close()
+        raise RuntimeError("같은 run이 이미 기록 중입니다.") from exc
+    try:
+        yield
+    finally:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+
+
+def video_seconds_of(pts: int, numerator: int, denominator: int) -> Decimal:
+    if numerator <= 0 or denominator <= 0:
+        raise ValueError("time_base가 유효하지 않습니다.")
+    return (Decimal(pts) * Decimal(numerator) / Decimal(denominator)).quantize(SECOND)
+
+
+def frame_id_of(video_id: str, stream_index: int, pts: int) -> str:
+    return f"{video_id}:s{stream_index}:pts{pts}"
+
+
+def later_target_count() -> int:
+    step = IMAGES_PER_REQUEST - CONTEXT_IMAGES
+    if step <= 0:
+        raise ValueError("문맥 장수가 요청 상한 이상입니다.")
+    return step
+
+
+def planned_request_count(count: int) -> int:
+    if count <= 0:
+        return 0
+    if count <= IMAGES_PER_REQUEST:
+        return 1
+    return 1 + math.ceil((count - IMAGES_PER_REQUEST) / later_target_count())
+
+
+def build_batches(frame_ids: list[str]) -> list[dict[str, Any]]:
+    if not frame_ids:
+        return []
+    first = IMAGES_PER_REQUEST
+    later = later_target_count()
+    batches = [{"context_ids": [], "target_ids": list(frame_ids[:first])}]
+    position = first
+    while position < len(frame_ids):
+        targets = list(frame_ids[position:position + later])
+        if not targets:
+            break
+        batches.append({"context_ids": [frame_ids[position - 1]] if CONTEXT_IMAGES else [], "target_ids": targets})
+        position += len(targets)
+    return batches
+
+
+def batch_shape_problems(candidate_id: str, frame_ids: list[str], batches: list[dict[str, Any]]) -> list[str]:
+    problems = []
+    limit = IMAGES_PER_REQUEST
+    later = later_target_count()
+    covered: list[str] = []
+    for batch_index, batch in enumerate(batches):
+        batch_id = str(batch.get("batch_id") or f"{candidate_id}#b{batch_index}")
+        covered.extend(batch["target_ids"])
+        images = len(batch["context_ids"]) + len(batch["target_ids"])
+        if images < 1 or images > limit:
+            problems.append(f"{batch_id} 이미지 수 {images}이 1..{limit}이 아닙니다.")
+        if not batch["target_ids"]:
+            problems.append(f"{batch_id} target이 없습니다.")
+        if batch_index == 0:
+            if batch["context_ids"]:
+                problems.append(f"{batch_id} 첫 묶음에 context가 있습니다.")
+            if batch["target_ids"] != frame_ids[:limit]:
+                problems.append(f"{batch_id} 첫 묶음 target이 상한 {limit}과 다릅니다.")
+        else:
+            previous = batches[batch_index - 1]["target_ids"][-1]
+            expected_context = [previous] if CONTEXT_IMAGES else []
+            if batch["context_ids"] != expected_context:
+                problems.append(f"{batch_id} context가 현재 설정과 다릅니다.")
+            start = limit + (batch_index - 1) * later
+            if batch["target_ids"] != frame_ids[start:start + later]:
+                problems.append(f"{batch_id} target 범위가 상한과 다릅니다.")
+        if set(batch["context_ids"]) & set(batch["target_ids"]):
+            problems.append(f"{batch_id} context가 target에 포함됩니다.")
+    if covered != frame_ids:
+        problems.append(f"{candidate_id} target 순서가 프레임과 다릅니다.")
+    if len(covered) != len(set(covered)):
+        problems.append(f"{candidate_id} target이 두 번 이상 들어갑니다.")
+    return problems
+
+
+def eligible_context_ids(context_ids: list[str], decisions: dict[str, str]) -> list[str]:
+    chosen = []
+    for frame_id in context_ids:
+        if decisions.get(frame_id) == "keep":
+            chosen.append(frame_id)
+    return chosen
+
+
+def rollup_status(statuses: list[str]) -> str:
+    if not statuses:
+        return "ok"
+    if all(status == "ok" for status in statuses):
+        return "ok"
+    if all(status == "pending" for status in statuses):
+        return "pending"
+    if any(status == "unknown" for status in statuses):
+        return "partial" if any(status == "ok" for status in statuses) else "blocked"
+    if any(status == "ok" for status in statuses):
+        return "partial"
+    if any(status == "failed" for status in statuses):
+        return "failed"
+    return "pending"
+
+
+def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in payload:
+            raise ValueError(f"중복 키 {key}")
+        payload[key] = value
+    return payload
+
+
+def _bad_constant(name: str) -> None:
+    raise ValueError(f"유한하지 않은 수치 {name}")
+
+
+def parse_strict_object(text: str) -> tuple[dict[str, Any] | None, str | None]:
+    if "```" in text:
+        return None, "코드 펜스나 설명 펜스가 있습니다."
+    try:
+        payload = json.loads(text, object_pairs_hook=_pairs, parse_constant=_bad_constant)
+    except (json.JSONDecodeError, ValueError) as exc:
+        return None, f"JSON 객체를 확인하지 못했습니다: {exc}"
+    if not isinstance(payload, dict):
+        return None, "JSON 객체가 아닙니다."
+    return payload, None
+
+
+def extract_content(payload: dict[str, Any]) -> tuple[str | None, str | None]:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return None, "choices가 없습니다."
+    message = choices[0].get("message")
+    if not isinstance(message, dict) or "content" not in message:
+        return None, "message.content가 없습니다."
+    content = message.get("content")
+    if isinstance(content, str):
+        return content, None
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict) and set(part).issubset({"type", "text"}) and isinstance(part.get("text"), str):
+                if "type" in part and part["type"] != "text":
+                    return None, "content 조각 종류를 해석하지 못합니다."
+                parts.append(part["text"])
+            else:
+                return None, "content 조각을 해석하지 못합니다."
+        return "".join(parts), None
+    return None, "content를 해석하지 못합니다."
+
+
+def finish_reason_of(payload: dict[str, Any]) -> Any:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return None
+    return choices[0].get("finish_reason")
+
+
+def reasoning_of(payload: dict[str, Any]) -> str | None:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return None
+    message = choices[0].get("message")
+    if not isinstance(message, dict):
+        return None
+    reasoning = message.get("reasoning")
+    if reasoning is None:
+        reasoning = message.get("reasoning_content")
+    return reasoning if isinstance(reasoning, str) else None
+
+
+def validate_decisions(payload: dict[str, Any], target_ids: list[str], eligible_ids: list[str]) -> tuple[list[dict[str, Any]] | None, str | None]:
+    if set(payload) != {"frames"}:
+        return None, "최상위 키가 frames 하나가 아닙니다."
+    frames = payload["frames"]
+    if not isinstance(frames, list) or len(frames) != len(target_ids):
+        return None, "frames 수가 targets와 다릅니다."
+    normalized: list[dict[str, Any]] = []
+    for item, expected in zip(frames, target_ids):
+        if not isinstance(item, dict) or set(item) != DECISION_KEYS:
+            return None, "frame 객체의 키가 계약과 다릅니다."
+        frame_id, decision, reason = item["frame_id"], item["decision"], item["reason"]
+        if not isinstance(frame_id, str) or frame_id != expected:
+            return None, "frame_id가 target 순서와 다릅니다."
+        if not isinstance(decision, str) or decision not in SELECTION:
+            return None, "decision이 keep, drop, uncertain이 아닙니다."
+        if not isinstance(reason, str) or reason == "":
+            return None, "reason이 비어 있지 않은 문자열이 아닙니다."
+        if item["duplicate_of"] is not None:
+            return None, "P1의 duplicate_of는 모든 decision에서 null이어야 합니다."
+        normalized.append({"frame_id": frame_id, "decision": decision, "reason": reason, "duplicate_of": None})
+    return normalized, None
+
+
+def interpret_transport(transport: dict[str, Any], target_ids: list[str], eligible_ids: list[str]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "ok": False,
+        "error": transport.get("error"),
+        "content": None,
+        "reasoning": None,
+        "finish_reason": None,
+        "usage": None,
+        "parsed": None,
+        "outer": None,
+    }
+    if transport.get("error"):
+        return result
+    if transport.get("http_status") != 200:
+        result["error"] = f"HTTP {transport.get('http_status')}"
+        return result
+    raw = transport.get("response_body")
+    if not isinstance(raw, str):
+        result["error"] = "응답 본문이 없습니다."
+        return result
+    outer, error = parse_strict_object(raw)
+    if error or outer is None:
+        result["error"] = error or "응답 JSON이 아닙니다."
+        return result
+    result["outer"] = outer
+    result["finish_reason"] = finish_reason_of(outer)
+    result["reasoning"] = reasoning_of(outer)
+    usage = outer.get("usage") if isinstance(outer.get("usage"), dict) else None
+    result["usage"] = usage
+    content, content_error = extract_content(outer)
+    result["content"] = content
+    if content_error:
+        result["error"] = content_error
+        return result
+    if result["finish_reason"] != "stop":
+        result["error"] = f"finish_reason={result['finish_reason']}"
+        return result
+    if not isinstance(content, str) or content == "":
+        result["error"] = "판정 JSON이 없습니다."
+        return result
+    decision_payload, decision_error = parse_strict_object(content)
+    if decision_error or decision_payload is None:
+        result["error"] = decision_error or "판정 JSON이 아닙니다."
+        return result
+    parsed, parsed_error = validate_decisions(decision_payload, target_ids, eligible_ids)
+    if parsed_error or parsed is None:
+        result["error"] = parsed_error or "판정 구조가 계약과 다릅니다."
+        return result
+    result["parsed"] = parsed
+    result["ok"] = True
+    result["error"] = None
+    return result
+
+
+def tool_version(path: str) -> str | None:
+    try:
+        completed = subprocess.run([path, "-version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=10, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    line = completed.stdout.decode("utf-8", errors="replace").splitlines()
+    return line[0] if line else None
+
+
+def probe_video(ffprobe: str, path: Path) -> dict[str, Any]:
+    args = [
+        ffprobe, "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=index,codec_name,width,height,time_base,start_time,duration",
+        "-of", "json", str(path),
+    ]
+    completed = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False)
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.decode("utf-8", errors="replace")[-500:])
+    payload = json.loads(completed.stdout.decode("utf-8"))
+    streams = payload.get("streams") or []
+    if len(streams) != 1:
+        raise RuntimeError("비디오 스트림을 하나만 확인하지 못했습니다.")
+    stream = streams[0]
+    numerator, denominator = str(stream["time_base"]).split("/", 1)
+    return {
+        "index": int(stream["index"]),
+        "codec_name": str(stream["codec_name"]),
+        "width": int(stream["width"]),
+        "height": int(stream["height"]),
+        "numerator": int(numerator),
+        "denominator": int(denominator),
+        "start_time": Decimal(str(stream["start_time"])),
+        "duration": Decimal(str(stream["duration"])),
+    }
+
+
+def same_decimal(left: Any, right: Any) -> bool:
+    return Decimal(str(left)) == Decimal(str(right))
+
+
+def prompt_sha() -> str:
+    return sha256_text(prompts.ACTIVE_PROMPT)
+
+
+def code_records() -> list[dict[str, str]]:
+    return [{"path": path, "sha256": sha256_file(ROOT / path)} for path in CODE_FILES]
+
+
+def predecessor_record() -> dict[str, Any]:
+    path = RUNS_ROOT / A03_RUN_ID / "manifest.json"
+    manifest = read_json(path)
+    if manifest.get("config_id") != "A03":
+        raise RuntimeError("A03 predecessor config가 아닙니다.")
+    if sha256_file(path) != A03_MANIFEST_SHA256:
+        raise RuntimeError("A03 manifest hash가 스냅샷과 다릅니다.")
+    code = manifest.get("code") or []
+    problems = []
+    for item in code:
+        snapshot = ROOT / A03_SOURCE_DIR / Path(str(item["path"])).name
+        if not snapshot.is_file() or sha256_file(snapshot) != item.get("sha256"):
+            problems.append(str(item.get("path")))
+    if problems:
+        raise RuntimeError("A03 소스 스냅샷 해시가 manifest와 다릅니다: " + ", ".join(problems))
+    return {
+        "config_id": "A03",
+        "run_id": A03_RUN_ID,
+        "run_path": f"tests/T4/runs/{A03_RUN_ID}",
+        "manifest_sha256": A03_MANIFEST_SHA256,
+        "code": code,
+        "change": "execution control only; selection, prompt, resolution, batching unchanged",
+        "frame_donor_run_id": A00_RUN_ID,
+        "response_donor_run_ids": list(SUCCESS_DONOR_RUNS),
+    }
+
+
+def load_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]]:
+    problems: list[str] = []
+    root = ROOT / B05_ROOT
+    manifest_path = root / "manifest.json"
+    acceptance_path = root / "acceptance.md"
+    if not manifest_path.is_file() or not acceptance_path.is_file():
+        return ["B05 manifest 또는 acceptance가 없습니다."], {}
+    manifest_hash = sha256_file(manifest_path)
+    if manifest_hash != B05_MANIFEST_SHA:
+        problems.append("B05 manifest SHA-256이 고정값과 다릅니다.")
+    acceptance_text = acceptance_path.read_text(encoding="utf-8")
+    if B05_MANIFEST_SHA not in acceptance_text:
+        problems.append("acceptance에 manifest SHA-256이 없습니다.")
+    manifest = read_json(manifest_path)
+    if manifest.get("config_id") != "B05" or manifest.get("logic_version") != "t3.screen_changes.tile_or.grid_support.v1":
+        problems.append("B05 config 또는 logic이 고정값과 다릅니다.")
+    if manifest.get("schema_version") != "t3.screen_changes.v6":
+        problems.append("B05 schema가 t3.screen_changes.v6이 아닙니다.")
+    videos = {item["video_id"]: item for item in manifest.get("videos") or []}
+    t2_ids: list[str] = []
+    t2_cache: dict[str, dict[str, Any]] = {}
+    documents: dict[str, dict[str, Any]] = {}
+    for candidate_id, relative, expected in CANDIDATES:
+        path = root / relative
+        digest = sha256_file(path) if path.is_file() else ""
+        if digest != expected or expected not in acceptance_text:
+            problems.append(f"{candidate_id} 해시가 고정값 또는 acceptance와 다릅니다.")
+            continue
+        raw = read_json(path)
+        if raw.get("candidate_id") != candidate_id or raw.get("status") != "ok" or not (raw.get("validation") or {}).get("ok"):
+            problems.append(f"{candidate_id} 식별자, status, validation이 계약과 다릅니다.")
+        if raw.get("schema_version") != "t3.screen_changes.v6":
+            problems.append(f"{candidate_id} schema가 다릅니다.")
+        video_id = candidate_id.split(":", 1)[0]
+        video = videos.get(video_id)
+        if video is None:
+            problems.append(f"{candidate_id}의 영상이 manifest에 없습니다.")
+            continue
+        problems.extend(_audit_candidate(raw, video, path, t2_cache))
+        documents[candidate_id] = raw
+    for video_id, video in videos.items():
+        source = ROOT / video["source_path"]
+        if source.is_file():
+            payload = read_json(source)
+            t2_ids.extend(item["candidate_id"] for item in payload.get("candidates") or [])
+    expected_ids = [item[0] for item in CANDIDATES]
+    out_of_scope = [item for item in t2_ids if item not in expected_ids]
+    if len(documents) == 12 and (len(t2_ids) != 139 or len(out_of_scope) != 127):
+        problems.append(f"T2 후보 수 {len(t2_ids)}, 범위 밖 {len(out_of_scope)}이 139/127과 다릅니다.")
+    probed: dict[str, dict[str, Any]] = {}
+    if not problems:
+        for video_id, video in videos.items():
+            if video_id not in {item.split(':', 1)[0] for item in expected_ids}:
+                continue
+            media = video["media"]
+            media_path = ROOT / media["path"]
+            if not media_path.is_file() or not str(media["path"]).startswith(f"data/{video_id}/"):
+                problems.append(f"{video_id} 원본 경로가 없습니다.")
+                continue
+            stat = media_path.stat()
+            if stat.st_size != media["size"] or stat.st_mtime_ns != media["mtime_ns"]:
+                problems.append(f"{video_id} 원본 size 또는 mtime이 manifest와 다릅니다.")
+            try:
+                probed[video_id] = probe_video(ffprobe, media_path)
+            except (OSError, RuntimeError, json.JSONDecodeError, ValueError) as exc:
+                problems.append(f"{video_id} ffprobe 실패: {exc}")
+                continue
+            got = probed[video_id]
+            time_base = media["time_base"]
+            if got["index"] != media["stream_index"] or got["codec_name"] != media["codec_name"]:
+                problems.append(f"{video_id} stream index 또는 codec이 manifest와 다릅니다.")
+            if got["width"] != media["width"] or got["height"] != media["height"]:
+                problems.append(f"{video_id} 해상도가 manifest와 다릅니다.")
+            if got["numerator"] != time_base["numerator"] or got["denominator"] != time_base["denominator"]:
+                problems.append(f"{video_id} time_base가 manifest와 다릅니다.")
+            if got["start_time"] != Decimal(str(media["start_time"])):
+                problems.append(f"{video_id} start_time이 manifest와 다릅니다.")
+            if not same_decimal(media.get("audio_to_video_offset_seconds"), 0):
+                problems.append(f"{video_id} audio offset이 0이 아닙니다. 재적용하지 않고 중단합니다.")
+    library = {
+        "manifest": manifest,
+        "manifest_sha256": manifest_hash,
+        "acceptance_sha256": sha256_file(acceptance_path),
+        "documents": documents,
+        "probed": probed,
+        "videos": videos,
+        "out_of_scope": out_of_scope,
+        "t2_count": len(t2_ids),
+        "ffmpeg": {"path": ffmpeg, "version_line": tool_version(ffmpeg)},
+        "ffprobe": {"path": ffprobe, "version_line": tool_version(ffprobe)},
+    }
+    return problems, library
+
+
+def _audit_candidate(raw: dict[str, Any], video: dict[str, Any], path: Path, t2_cache: dict[str, dict[str, Any]]) -> list[str]:
+    problems: list[str] = []
+    candidate_id = raw["candidate_id"]
+    video_id = candidate_id.split(":", 1)[0]
+    text_ref = raw.get("text_ref") or {}
+    t2_path = ROOT / str(text_ref.get("t2_path") or "")
+    t1_path = ROOT / str(text_ref.get("t1_path") or "")
+    if raw.get("source_t2_ref") != text_ref.get("t2_path") or raw.get("source_t2_sha256") != text_ref.get("t2_sha256"):
+        problems.append(f"{candidate_id} T2 참조가 text_ref와 다릅니다.")
+    if not t2_path.is_file() or sha256_file(t2_path) != text_ref.get("t2_sha256"):
+        problems.append(f"{candidate_id} T2 해시가 다릅니다.")
+        return problems
+    if not t1_path.is_file() or sha256_file(t1_path) != text_ref.get("t1_sha256"):
+        problems.append(f"{candidate_id} T1 해시가 다릅니다.")
+        return problems
+    cache_key = str(text_ref["t2_path"])
+    if cache_key not in t2_cache:
+        t2_cache[cache_key] = read_json(t2_path)
+    t2 = t2_cache[cache_key]
+    if t2.get("video_id") != video_id:
+        problems.append(f"{candidate_id} T2 video_id가 다릅니다.")
+    matches = [item for item in t2.get("candidates") or [] if item.get("candidate_id") == candidate_id]
+    if len(matches) != 1:
+        problems.append(f"{candidate_id} T2 후보가 하나가 아닙니다.")
+        return problems
+    source = raw.get("source_candidate") or {}
+    match = matches[0]
+    for key in ("candidate_source", "model_inference_success", "unit_index", "chunk_index", "sentence_start", "sentence_end"):
+        if source.get(key) != match.get(key):
+            problems.append(f"{candidate_id} T2 {key}가 다릅니다.")
+    if video_id == "H2WN130OzLg" and candidate_id in {SMOKE_CANDIDATE, "H2WN130OzLg:u7:c0"}:
+        if source.get("candidate_source") != "budget_guard" or source.get("model_inference_success") is not False:
+            problems.append(f"{candidate_id} budget_guard 출처가 유지되지 않았습니다.")
+    t1 = read_json(t1_path)
+    t1_units = [unit for unit in t1.get("units") or [] if int(unit.get("index")) == int(text_ref["unit_index"])]
+    t2_units = [unit for unit in t2.get("units") or [] if int(unit.get("unit_index")) == int(text_ref["unit_index"])]
+    if len(t1_units) != 1 or len(t2_units) != 1:
+        problems.append(f"{candidate_id} 의미 단위가 하나가 아닙니다.")
+        return problems
+    start = int(text_ref["sentence_start"])
+    end = int(text_ref["sentence_end"])
+    t1_sentences = [item for item in t1_units[0].get("sentences") or [] if start <= int(item["index"]) < end]
+    t2_sentences = [item for item in t2_units[0].get("sentences") or [] if start <= int(item["index"]) < end]
+    if [item["text"] for item in t1_sentences] != [item["text"] for item in t2_sentences]:
+        problems.append(f"{candidate_id} T1과 T2 문장 텍스트가 다릅니다.")
+    alignment_path = ROOT / t2["input"]["alignment_sentences"]
+    if sha256_file(alignment_path) != t2["input"]["alignment_sha256"]:
+        problems.append(f"{candidate_id} alignment 해시가 다릅니다.")
+        return problems
+    chunks = read_json(alignment_path)["chunks"]
+    for sentence in t1_sentences:
+        chunk = chunks[int(sentence["index"])]
+        if chunk["text"] != sentence["text"]:
+            problems.append(f"{candidate_id} 문장 {sentence['index']} 원문이 다릅니다.")
+            break
+        if not same_decimal(chunk["items"][0]["start_time"], sentence["start_time"]) or not same_decimal(chunk["items"][-1]["end_time"], sentence["end_time"]):
+            problems.append(f"{candidate_id} 문장 {sentence['index']} audio 시각이 다릅니다.")
+            break
+    offset = Decimal(str(video["media"]["audio_to_video_offset_seconds"]))
+    if not same_decimal(source.get("video_start"), Decimal(str(source.get("audio_start"))) + offset):
+        problems.append(f"{candidate_id} video 시작이 audio와 offset의 합과 다릅니다.")
+    if not same_decimal(source.get("video_end"), Decimal(str(source.get("audio_end"))) + offset):
+        problems.append(f"{candidate_id} video 끝이 audio와 offset의 합과 다릅니다.")
+    media = video["media"]
+    problems.extend(_audit_samples(raw, media))
+    return problems
+
+
+def _audit_samples(raw: dict[str, Any], media: dict[str, Any]) -> list[str]:
+    problems: list[str] = []
+    candidate_id = raw["candidate_id"]
+    samples = raw.get("samples") or []
+    segments = raw.get("segments") or []
+    owned: dict[int, int] = {}
+    for segment in segments:
+        for index in segment.get("analysis_sample_indices") or []:
+            owned[int(index)] = owned.get(int(index), 0) + 1
+    if sorted(owned) != list(range(len(samples))) or any(value != 1 for value in owned.values()):
+        problems.append(f"{candidate_id} 구간 소속이 누락되었거나 중복입니다.")
+    seen_pts: set[int] = set()
+    duration = Decimal(str(media["duration"]))
+    for sample in samples:
+        index = int(sample["sample_index"])
+        pts = sample.get("pts")
+        time_base = sample.get("time_base") or {}
+        if not isinstance(pts, int) or pts in seen_pts:
+            problems.append(f"{candidate_id} sample {index} PTS가 정수가 아니거나 후보 안에서 중복입니다.")
+            continue
+        seen_pts.add(pts)
+        if time_base.get("numerator") != media["time_base"]["numerator"] or time_base.get("denominator") != media["time_base"]["denominator"]:
+            problems.append(f"{candidate_id} sample {index} time_base가 스트림과 다릅니다.")
+            continue
+        actual = video_seconds_of(pts, int(time_base["numerator"]), int(time_base["denominator"]))
+        if actual != Decimal(str(sample["video_seconds"])):
+            problems.append(f"{candidate_id} sample {index} 저장 시각이 PTS rational과 다릅니다.")
+        if actual < 0 or actual >= duration:
+            problems.append(f"{candidate_id} sample {index}가 스트림 범위 밖입니다.")
+        if int(sample.get("stream_index")) != int(media["stream_index"]):
+            problems.append(f"{candidate_id} sample {index} stream index가 다릅니다.")
+    request_links: dict[int, list[int]] = {}
+    for request in raw.get("requests") or []:
+        sample_index = request.get("sample_index")
+        if request.get("status") != "ok" or not isinstance(sample_index, int) or not 0 <= sample_index < len(samples):
+            problems.append(f"{candidate_id} request {request.get('request_index')} 연결이 없습니다.")
+            continue
+        request_links.setdefault(sample_index, []).append(int(request["request_index"]))
+        if request_links[sample_index] != list(samples[sample_index].get("request_indices") or [])[:len(request_links[sample_index])]:
+            pass
+    for sample in samples:
+        if list(sample.get("request_indices") or []) != request_links.get(int(sample["sample_index"]), []):
+            problems.append(f"{candidate_id} sample {sample['sample_index']} request 연결이 다릅니다.")
+            break
+    if candidate_id == SMOKE_CANDIDATE:
+        anchor = next((sample for sample in samples if int(sample["sample_index"]) == SMOKE_SAMPLE_INDEX), None)
+        if anchor is None or int(anchor["pts"]) != SMOKE_PTS or Decimal(str(anchor["video_seconds"])) != Decimal("1247.913000000"):
+            problems.append("H2 u25 sample_index 1의 실제 PTS가 1247.913초가 아닙니다.")
+    return problems
+
+
+def sentences_of(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    text_ref = raw["text_ref"]
+    t2 = read_json(ROOT / text_ref["t2_path"])
+    unit = next(unit for unit in t2["units"] if int(unit["unit_index"]) == int(text_ref["unit_index"]))
+    start = int(text_ref["sentence_start"])
+    end = int(text_ref["sentence_end"])
+    sentences = []
+    for sentence in unit["sentences"]:
+        if start <= int(sentence["index"]) < end:
+            sentences.append({
+                "sentence_index": int(sentence["index"]),
+                "text": str(sentence["text"]),
+                "audio_start": Decimal(str(sentence["start_time"])),
+                "audio_end": Decimal(str(sentence["end_time"])),
+            })
+    return sentences
+
+
+def build_frames(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    video_id = raw["candidate_id"].split(":", 1)[0]
+    segment_of: dict[int, dict[str, Any]] = {}
+    for segment in raw["segments"]:
+        for index in segment["analysis_sample_indices"]:
+            segment_of[int(index)] = segment
+    requests = {int(item["request_index"]): item for item in raw["requests"]}
+    frames: list[dict[str, Any]] = []
+    by_pts: dict[int, dict[str, Any]] = {}
+    for sample in sorted(raw["samples"], key=lambda item: (int(item["pts"]), int(item["sample_index"]))):
+        pts = int(sample["pts"])
+        request_rows = []
+        for request_index in sample["request_indices"]:
+            request = requests[int(request_index)]
+            request_rows.append({
+                "request_index": int(request_index),
+                "requested_video_seconds": Decimal(str(request["requested_video_seconds"])),
+                "kind": request.get("kind"),
+                "sample_index": int(sample["sample_index"]),
+            })
+        if pts in by_pts:
+            frame = by_pts[pts]
+            frame["sample_indices"].append(int(sample["sample_index"]))
+            frame["requests"].extend(request_rows)
+            continue
+        time_base = sample["time_base"]
+        frame = {
+            "frame_id": frame_id_of(video_id, int(sample["stream_index"]), pts),
+            "sample_indices": [int(sample["sample_index"])],
+            "requests": request_rows,
+            "stream_index": int(sample["stream_index"]),
+            "pts": pts,
+            "time_base": {"numerator": int(time_base["numerator"]), "denominator": int(time_base["denominator"])},
+            "video_seconds": video_seconds_of(pts, int(time_base["numerator"]), int(time_base["denominator"])),
+            "segment_index": int(segment_of[int(sample["sample_index"])]["segment_index"]),
+            "full": None,
+            "vlm": None,
+            "decision": None,
+            "reason": None,
+            "duplicate_of": None,
+            "selection": None,
+            "execution_state": "pending",
+            "batch_id": None,
+        }
+        by_pts[pts] = frame
+        frames.append(frame)
+    return frames
+
+
+def build_candidate(raw: dict[str, Any], video: dict[str, Any]) -> dict[str, Any]:
+    frames = build_frames(raw)
+    batches = []
+    for index, batch in enumerate(build_batches([frame["frame_id"] for frame in frames])):
+        batch_id = f"{raw['candidate_id']}#b{index}"
+        for frame_id in batch["target_ids"]:
+            frame = next(item for item in frames if item["frame_id"] == frame_id)
+            frame["batch_id"] = batch_id
+        batches.append({
+            "batch_id": batch_id,
+            "batch_index": index,
+            "context_ids": batch["context_ids"],
+            "target_ids": batch["target_ids"],
+            "eligible_context_ids": [],
+            "status": "pending",
+            "call_ref": None,
+            "reused_from": None,
+            "http_attempts": 0,
+            "decisions": None,
+            "error": None,
+            "request_bytes": None,
+            "text_chars": None,
+            "target_image_bytes": None,
+            "context_image_bytes": None,
+        })
+    segments = []
+    for segment in raw["segments"]:
+        sample_ids = [int(item) for item in segment["analysis_sample_indices"]]
+        frame_ids = []
+        for frame in frames:
+            if int(segment["segment_index"]) == frame["segment_index"] and any(index in sample_ids for index in frame["sample_indices"]):
+                frame_ids.append(frame["frame_id"])
+        segments.append({
+            "segment_index": int(segment["segment_index"]),
+            "video_start": Decimal(str(segment["video_start"])),
+            "video_end": Decimal(str(segment["video_end"])),
+            "left_boundary_index": segment.get("left_boundary_index"),
+            "right_boundary_index": segment.get("right_boundary_index"),
+            "analysis_sample_indices": sample_ids,
+            "frame_ids": frame_ids,
+            "selected_confirmed": [],
+            "retained_uncertain": [],
+            "not_selected": [],
+            "pending": list(frame_ids),
+            "failed": [],
+        })
+    text_ref = raw["text_ref"]
+    return {
+        "candidate_id": raw["candidate_id"],
+        "unit_index": int(raw["unit_index"]),
+        "chunk_index": int(raw["chunk_index"]),
+        "source_candidate": freeze(raw["source_candidate"]),
+        "source_t3_ref": rel(ROOT / B05_ROOT / f"{raw['candidate_id'].split(':', 1)[0]}/candidates/u{raw['unit_index']}_c{raw['chunk_index']}.json"),
+        "source_t3_sha256": sha256_file(ROOT / B05_ROOT / f"{raw['candidate_id'].split(':', 1)[0]}/candidates/u{raw['unit_index']}_c{raw['chunk_index']}.json"),
+        "source_t2_ref": raw["source_t2_ref"],
+        "source_t2_sha256": raw["source_t2_sha256"],
+        "text_ref": freeze(text_ref),
+        "sentences": sentences_of(raw),
+        "requested_range": freeze(raw["requested_range"]),
+        "effective_range": freeze(raw["effective_range"]),
+        "t3_warnings": freeze(raw.get("warnings") or []),
+        "boundaries": freeze(raw.get("boundaries") or []),
+        "frames": frames,
+        "segments": segments,
+        "batches": batches,
+        "selected_confirmed": [],
+        "retained_uncertain": [],
+        "not_selected": [],
+        "status": rollup_status([batch["status"] for batch in batches]),
+        "problems": [],
+        "warnings": [],
+        "validation": {"ok": True, "problems": []},
+    }
+
+
+def build_video_document(video_id: str, candidates: list[dict[str, Any]], video: dict[str, Any], probed: dict[str, Any]) -> dict[str, Any]:
+    media = video["media"]
+    metadata = read_json(ROOT / video["references"]["metadata"]["path"])
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "config_id": CONFIG_ID,
+        "logic_version": LOGIC_VERSION,
+        "prompt_id": prompts.PROMPT_ID,
+        "prompt_sha256": prompt_sha(),
+        "path_reference": "repository_root",
+        "video_id": video_id,
+        "source_url": metadata.get("source_url"),
+        "media": {
+            "path": media["path"],
+            "recorded_sha256": media["recorded_sha256"],
+            "bytes_rehashed": False,
+            "size": media["size"],
+            "mtime_ns": media["mtime_ns"],
+            "stream_index": media["stream_index"],
+            "codec_name": media["codec_name"],
+            "width": media["width"],
+            "height": media["height"],
+            "time_base": freeze(media["time_base"]),
+            "start_time": Decimal(str(media["start_time"])),
+            "duration": Decimal(str(probed["duration"])),
+            "audio_to_video_offset_seconds": Decimal(str(media["audio_to_video_offset_seconds"])),
+            "offset_reapplied": False,
+        },
+        "candidates": candidates,
+        "status": rollup_status([item["status"] for item in candidates]),
+        "problems": [],
+        "warnings": [],
+        "validation": {"ok": True, "problems": []},
+    }
+
+
+def refresh_candidate(candidate: dict[str, Any]) -> None:
+    frames = {frame["frame_id"]: frame for frame in candidate["frames"]}
+    decisions: dict[str, dict[str, Any]] = {}
+    batch_of = {frame["frame_id"]: frame["batch_id"] for frame in candidate["frames"]}
+    status_of = {batch["batch_id"]: batch["status"] for batch in candidate["batches"]}
+    for batch in candidate["batches"]:
+        if batch["status"] == "ok" and isinstance(batch.get("decisions"), list):
+            for item in batch["decisions"]:
+                decisions[item["frame_id"]] = item
+    for frame in candidate["frames"]:
+        item = decisions.get(frame["frame_id"])
+        state = status_of.get(frame["batch_id"], "pending")
+        if item and state == "ok":
+            frame["decision"] = item["decision"]
+            frame["reason"] = item["reason"]
+            frame["duplicate_of"] = item["duplicate_of"]
+            frame["selection"] = SELECTION[item["decision"]]
+            frame["execution_state"] = "ok"
+        else:
+            frame["decision"] = None
+            frame["reason"] = None
+            frame["duplicate_of"] = None
+            frame["selection"] = None
+            if state == "failed":
+                frame["execution_state"] = "failed"
+            elif state == "unknown":
+                frame["execution_state"] = "unknown"
+            else:
+                frame["execution_state"] = "pending"
+    candidate["selected_confirmed"] = [frame["frame_id"] for frame in candidate["frames"] if frame["selection"] == "selected_confirmed"]
+    candidate["retained_uncertain"] = [frame["frame_id"] for frame in candidate["frames"] if frame["selection"] == "retained_uncertain"]
+    candidate["not_selected"] = [frame["frame_id"] for frame in candidate["frames"] if frame["selection"] == "not_selected"]
+    confirmed = set(candidate["selected_confirmed"])
+    problems = []
+    for frame in candidate["frames"]:
+        duplicate = frame.get("duplicate_of")
+        if isinstance(duplicate, str) and duplicate not in confirmed:
+            problems.append(f"{frame['frame_id']}의 duplicate_of가 confirmed에 없습니다.")
+    for segment in candidate["segments"]:
+        ids = segment["frame_ids"]
+        segment["selected_confirmed"] = [frame_id for frame_id in ids if frames[frame_id]["selection"] == "selected_confirmed"]
+        segment["retained_uncertain"] = [frame_id for frame_id in ids if frames[frame_id]["selection"] == "retained_uncertain"]
+        segment["not_selected"] = [frame_id for frame_id in ids if frames[frame_id]["selection"] == "not_selected"]
+        segment["pending"] = [frame_id for frame_id in ids if frames[frame_id]["execution_state"] == "pending"]
+        segment["failed"] = [frame_id for frame_id in ids if frames[frame_id]["execution_state"] == "failed"]
+        segment["unknown"] = [frame_id for frame_id in ids if frames[frame_id]["execution_state"] == "unknown"]
+    candidate["problems"] = problems
+    candidate["status"] = rollup_status([batch["status"] for batch in candidate["batches"]])
+    candidate["validation"] = {"ok": not problems, "problems": problems}
+    if batch_of is None:
+        return
+
+
+def refresh_document(document: dict[str, Any]) -> None:
+    for candidate in document["candidates"]:
+        refresh_candidate(candidate)
+    document["status"] = rollup_status([candidate["status"] for candidate in document["candidates"]])
+    problems = [problem for candidate in document["candidates"] for problem in candidate["problems"]]
+    document["problems"] = problems
+    document["validation"] = {"ok": not problems, "problems": problems}
+
+
+def settings_payload() -> dict[str, Any]:
+    return {
+        "config_id": CONFIG_ID,
+        "logic_version": LOGIC_VERSION,
+        "schema_version": SCHEMA_VERSION,
+        "prompt_id": prompts.PROMPT_ID,
+        "frame_source": "all_b05_samples_time_order",
+        "extra_time_samples": False,
+        "padding_seconds": "0",
+        "image": {
+            "color": "rgb24",
+            "container": "png",
+            "vlm_long_side_max": 1280,
+            "upscale": False,
+            "keep_aspect": True,
+            "scale_flags": "area",
+            "scale_filter_landscape": "scale=w='min(1280,iw)':h=-2:flags=area,format=rgb24",
+            "scale_filter_portrait": "scale=w=-2:h='min(1280,ih)':flags=area,format=rgb24",
+        },
+        "images_per_request": IMAGES_PER_REQUEST,
+        "context_images": CONTEXT_IMAGES,
+        "new_targets_after_first": later_target_count(),
+        "temperature": 0,
+        "enable_thinking": False,
+        "max_tokens": MAX_TOKENS,
+        "timeout_seconds": TIMEOUT_SECONDS,
+        "concurrency": 1,
+        "retries": 0,
+        "infer_url": INFER_URL,
+        "body_model": BODY_MODEL,
+        "infer_model_id": INFER_MODEL_ID,
+        "separate_duplicate_call": False,
+        "semantic_duplicate_filter": False,
+        "duplicate_of_policy": "always_null",
+        "selection_scope": "per_frame_analysis_value",
+        "successful_response_donor_runs": list(SUCCESS_DONOR_RUNS),
+        "response_reuse_policy": "exact request key/body hash plus raw response revalidation; preserve source call",
+    }
+
+
+def model_payload() -> dict[str, Any]:
+    return {
+        "url": INFER_URL,
+        "infer_model_id": INFER_MODEL_ID,
+        "body_model": BODY_MODEL,
+        "checkpoint": None,
+        "server_version": None,
+        "context_limit": None,
+        "visual_token_limit": None,
+        "max_images": None,
+        "vram": None,
+        "image_preprocessor": None,
+        "note": "body model은 기존 T1/T2 요청 식별자이며 현재 체크포인트 확인은 아니다.",
+    }
+
+
+def empty_run(run_id: str) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "started_at": utc_now(),
+        "finished_at": None,
+        "phase": "planned",
+        "run_status": "pending",
+        "quality_status": "pending_review",
+        "counts": {
+            "new": 0,
+            "reused": 0,
+            "failed": 0,
+            "pending": 0,
+            "http_attempts": 0,
+            "context_reinputs": 0,
+        },
+        "timing": {
+            "decode_seconds": Decimal(0),
+            "resize_seconds": Decimal(0),
+            "inference_seconds": Decimal(0),
+            "render_seconds": Decimal(0),
+            "wall_seconds": Decimal(0),
+        },
+        "usage": None,
+        "vram": None,
+        "model_calls_observed": {
+            "multi_image_http_accepted": None,
+            "image_use_confirmed": None,
+        },
+        "smoke": None,
+        "frame_files": {"reused": 0, "created": 0},
+        "problems": [],
+    }
+
+
+def video_order(candidate_ids: list[str]) -> list[str]:
+    order = []
+    for candidate_id in candidate_ids:
+        video_id = candidate_id.split(":", 1)[0]
+        if video_id not in order:
+            order.append(video_id)
+    return order
+
+
+def command_plan() -> int:
+    ffmpeg = shutil.which("ffmpeg") or ""
+    ffprobe = shutil.which("ffprobe") or ""
+    if not ffmpeg or not ffprobe:
+        print_problem("ffmpeg 또는 ffprobe가 없습니다.", "tests/T4/run_t4.py", "plan")
+        return 1
+    problems, library = load_inputs(ffmpeg, ffprobe)
+    if problems or not library:
+        for problem in problems:
+            print_problem(problem, B05_ROOT, "plan")
+        return 1
+    documents = []
+    total_requests = 0
+    total_frames = 0
+    total_segments = 0
+    for candidate_id, _relative, _expected in CANDIDATES:
+        raw = library["documents"][candidate_id]
+        video_id = candidate_id.split(":", 1)[0]
+        candidate = build_candidate(raw, library["videos"][video_id])
+        total_requests += len(candidate["batches"])
+        total_frames += len(candidate["frames"])
+        total_segments += len(candidate["segments"])
+        if len(candidate["frames"]) != len(raw["samples"]):
+            print_problem("고유 프레임 수가 샘플 수와 다릅니다.", candidate_id, "plan")
+            return 1
+        if len(candidate["batches"]) != planned_request_count(len(raw["samples"])):
+            print_problem("묶음 수가 샘플 수 공식과 다릅니다.", candidate_id, "plan")
+            return 1
+        shape = batch_shape_problems(candidate_id, [frame["frame_id"] for frame in candidate["frames"]], candidate["batches"])
+        if shape:
+            print_problem(shape[0], candidate_id, "plan")
+            return 1
+        documents.append(candidate)
+    if total_frames != INPUT_FRAMES or total_segments != INPUT_SEGMENTS:
+        print_problem(
+            f"고정 입력의 프레임 {total_frames}, 구간 {total_segments}이 {INPUT_FRAMES}/{INPUT_SEGMENTS}과 다릅니다.",
+            B05_ROOT,
+            "plan",
+        )
+        return 1
+    pilot_requests = sum(len(item["batches"]) for item in documents if item["candidate_id"] in PILOT)
+    anchor = next(item for item in documents if item["candidate_id"] == SMOKE_CANDIDATE)
+    anchor_frames = anchor["frames"]
+    first_targets = anchor["batches"][0]["target_ids"]
+    card_id = frame_id_of("H2WN130OzLg", 0, SMOKE_PTS)
+    if anchor["batches"][0]["context_ids"] or card_id not in first_targets or not any(SMOKE_SAMPLE_INDEX in frame["sample_indices"] and frame["frame_id"] in first_targets for frame in anchor_frames):
+        print_problem("H2 u25 첫 묶음에 sample_index 1이 없습니다.", SMOKE_CANDIDATE, "plan")
+        return 1
+    by_video: dict[str, list[dict[str, Any]]] = {}
+    for candidate in documents:
+        by_video.setdefault(candidate["candidate_id"].split(":", 1)[0], []).append(candidate)
+    video_documents = []
+    for video_id in video_order([item[0] for item in CANDIDATES]):
+        video_documents.append(build_video_document(video_id, by_video[video_id], library["videos"][video_id], library["probed"][video_id]))
+    structural = structural_validation(video_documents)
+    if not structural["ok"]:
+        print_problem(structural["problems"][0], B05_ROOT, "plan")
+        return 1
+    try:
+        predecessor = predecessor_record()
+    except RuntimeError as exc:
+        print_problem(str(exc), f"tests/T4/runs/{A03_RUN_ID}/manifest.json", "plan")
+        return 1
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_" + secrets.token_hex(3)
+    run_dir = RUNS_ROOT / run_id
+    if run_dir.exists():
+        print_problem("run 폴더가 이미 있습니다.", str(run_dir), run_id)
+        return 1
+    run_dir.mkdir(parents=True)
+    manifest = {
+        "schema_version": SCHEMA_VERSION,
+        "work_id": WORK_ID,
+        "config_id": CONFIG_ID,
+        "logic_version": LOGIC_VERSION,
+        "prompt_id": prompts.PROMPT_ID,
+        "prompt_sha256": prompt_sha(),
+        "prompt_text": prompts.ACTIVE_PROMPT,
+        "path_reference": "repository_root",
+        "settings": settings_payload(),
+        "model": model_payload(),
+        "code": code_records(),
+        "predecessor": predecessor,
+        "runtime": {
+            "python": sys.version,
+            "ffmpeg": library["ffmpeg"],
+            "ffprobe": library["ffprobe"],
+        },
+        "input": {
+            "b05_root": B05_ROOT,
+            "manifest_sha256": library["manifest_sha256"],
+            "acceptance_sha256": library["acceptance_sha256"],
+            "t3_config_id": library["manifest"].get("config_id"),
+            "t3_logic_version": library["manifest"].get("logic_version"),
+            "t3_schema_version": library["manifest"].get("schema_version"),
+            "t3_settings": freeze(library["manifest"].get("settings")),
+            "candidates": [
+                {"candidate_id": candidate_id, "path": f"{B05_ROOT}/{relative}", "sha256": expected}
+                for candidate_id, relative, expected in CANDIDATES
+            ],
+            "video_bytes_rehashed": False,
+            "out_of_scope": library["out_of_scope"],
+        },
+        "plan": {
+            "frames": total_frames,
+            "segments": total_segments,
+            "requests": total_requests,
+            "pilot_requests": pilot_requests,
+            "smoke": {
+                "first": {"candidate_id": SMOKE_CANDIDATE, "batch_index": 0, "must_include_sample_index": SMOKE_SAMPLE_INDEX},
+                "second": {
+                    "rule": "largest_serialized_first_batch_among_pilot_excluding_H2WN130OzLg:u25:c0",
+                    "tie_break": [item for item in PILOT if item != SMOKE_CANDIDATE],
+                },
+                "max_http_requests": 2,
+            },
+            "batches": [
+                {
+                    "batch_id": batch["batch_id"],
+                    "candidate_id": candidate["candidate_id"],
+                    "batch_index": batch["batch_index"],
+                    "context_ids": batch["context_ids"],
+                    "target_ids": batch["target_ids"],
+                    "request_bytes": None,
+                }
+                for candidate in documents
+                for batch in candidate["batches"]
+            ],
+        },
+    }
+    write_json(run_dir / "manifest.json", manifest)
+    for document in video_documents:
+        refresh_document(document)
+        write_json(run_dir / document["video_id"] / "selected_frames.json", document)
+    run = empty_run(run_id)
+    run["counts"]["pending"] = total_requests
+    write_json(run_dir / "run.json", run)
+    _write_views(run_dir, video_documents, run)
+    print(f"run: tests/T4/runs/{run_id}", flush=True)
+    print(f"frames {total_frames}, segments {total_segments}, requests {total_requests}, pilot {pilot_requests}", flush=True)
+    return 0
+
+
+def load_documents(run_dir: Path) -> list[dict[str, Any]]:
+    manifest = read_json(run_dir / "manifest.json")
+    documents = []
+    seen = []
+    for item in manifest["plan"]["batches"]:
+        video_id = item["candidate_id"].split(":", 1)[0]
+        if video_id not in seen:
+            seen.append(video_id)
+            documents.append(freeze(read_json(run_dir / video_id / "selected_frames.json")))
+    return documents
+
+
+def save_documents(run_dir: Path, documents: list[dict[str, Any]]) -> None:
+    for document in documents:
+        refresh_document(document)
+        write_json(run_dir / document["video_id"] / "selected_frames.json", document)
+
+
+def find_batch(documents: list[dict[str, Any]], candidate_id: str, batch_index: int) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    for document in documents:
+        for candidate in document["candidates"]:
+            if candidate["candidate_id"] == candidate_id:
+                return document, candidate, candidate["batches"][batch_index]
+    raise KeyError(candidate_id)
+
+
+def iter_frames(candidate: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {frame["frame_id"]: frame for frame in candidate["frames"]}
+
+
+def image_label(frame: dict[str, Any], role: str) -> str:
+    return (
+        f"frame_id: {frame['frame_id']}\n"
+        f"role: {role}\n"
+        f"video_seconds: {format(frame['video_seconds'], 'f')}\n"
+        f"segment_index: {frame['segment_index']}\n"
+    )
+
+
+def build_request(candidate: dict[str, Any], batch: dict[str, Any], decisions: dict[str, str]) -> dict[str, Any]:
+    frames = iter_frames(candidate)
+    eligible: list[str] = []  # P1 does not authorize replacement by any other frame.
+    sentence_payload = [
+        {
+            "sentence_index": sentence["sentence_index"],
+            "text": sentence["text"],
+            "audio_start": sentence["audio_start"],
+            "audio_end": sentence["audio_end"],
+        }
+        for sentence in candidate["sentences"]
+    ]
+    rendered = prompts.render_prompt(
+        candidate["candidate_id"],
+        compact(sentence_payload),
+        compact(batch["target_ids"]),
+        compact(eligible),
+    )
+    content: list[dict[str, Any]] = [{"type": "text", "text": rendered}]
+    image_meta = []
+    target_bytes = 0
+    context_bytes = 0
+    ordered = [("context", frame_id) for frame_id in batch["context_ids"]] + [("target", frame_id) for frame_id in batch["target_ids"]]
+    if len(ordered) > IMAGES_PER_REQUEST:
+        raise RuntimeError(f"{batch['batch_id']} 이미지가 요청 상한 {IMAGES_PER_REQUEST}을 넘습니다.")
+    for role, frame_id in ordered:
+        frame = frames[frame_id]
+        vlm = frame.get("vlm") or {}
+        path = ROOT / str(vlm.get("path") or "")
+        data = path.read_bytes()
+        if sha256_bytes(data) != vlm.get("sha256"):
+            raise RuntimeError(f"{frame_id} VLM 파일 해시가 기록과 다릅니다.")
+        content.append({"type": "text", "text": image_label(frame, role)})
+        encoded = base64.standard_b64encode(data).decode("ascii")
+        content.append({"type": "image_url", "image_url": {"url": "data:image/png;base64," + encoded}})
+        image_meta.append({"frame_id": frame_id, "role": role, "sha256": vlm["sha256"], "path": vlm["path"], "bytes": len(data)})
+        if role == "target":
+            target_bytes += len(data)
+        else:
+            context_bytes += len(data)
+    body = {
+        "model": BODY_MODEL,
+        "messages": [{"role": "user", "content": content}],
+        "temperature": 0,
+        "max_tokens": MAX_TOKENS,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }
+    wire = compact(body).encode("utf-8")
+    return {
+        "body": body,
+        "wire": wire,
+        "eligible": eligible,
+        "rendered": rendered,
+        "images": image_meta,
+        "target_image_bytes": target_bytes,
+        "context_image_bytes": context_bytes,
+        "text_chars": len(rendered),
+        "request_bytes": len(wire),
+    }
+
+
+def decisions_so_far(candidate: dict[str, Any]) -> dict[str, str]:
+    found = {}
+    for batch in candidate["batches"]:
+        if batch["status"] == "ok" and isinstance(batch.get("decisions"), list):
+            for item in batch["decisions"]:
+                found[item["frame_id"]] = item["decision"]
+    return found
+
+
+def reuse_key(document: dict[str, Any], candidate: dict[str, Any], batch: dict[str, Any], built: dict[str, Any]) -> str:
+    payload = {
+        "logic_version": LOGIC_VERSION,
+        "prompt_sha256": prompt_sha(),
+        "rendered_prompt_sha256": sha256_text(built["rendered"]),
+        "url": INFER_URL,
+        "body_model": BODY_MODEL,
+        "infer_model_id": INFER_MODEL_ID,
+        "temperature": 0,
+        "max_tokens": MAX_TOKENS,
+        "enable_thinking": False,
+        "candidate_id": candidate["candidate_id"],
+        "candidate_sha256": candidate["source_t3_sha256"],
+        "media_path": document["media"]["path"],
+        "media_recorded_sha256": document["media"]["recorded_sha256"],
+        "media_size": document["media"]["size"],
+        "media_mtime_ns": document["media"]["mtime_ns"],
+        "sentences": candidate["sentences"],
+        "target_ids": batch["target_ids"],
+        "context_ids": batch["context_ids"],
+        "eligible_context_ids": built["eligible"],
+        "image_sha256": [item["sha256"] for item in built["images"]],
+        "request_sha256": sha256_bytes(built["wire"]),
+    }
+    return sha256_text(canonical(payload))
+
+
+class InferClient:
+    def post(self, wire: bytes) -> dict[str, Any]:
+        started = time.perf_counter()
+        request = urllib.request.Request(
+            INFER_URL,
+            data=wire,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        opener = urllib.request.build_opener(_NoRedirect())
+        try:
+            with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
+                raw = response.read()
+                status = response.status
+            return {
+                "http_status": status,
+                "response_body": raw.decode("utf-8"),
+                "elapsed_seconds": Decimal(str(round(time.perf_counter() - started, 6))),
+                "error": None,
+                "generation_state": None,
+            }
+        except urllib.error.HTTPError as exc:
+            raw = exc.read()
+            return {
+                "http_status": exc.code,
+                "response_body": raw.decode("utf-8", errors="replace"),
+                "elapsed_seconds": Decimal(str(round(time.perf_counter() - started, 6))),
+                "error": None,
+                "generation_state": None,
+            }
+        except TimeoutError:
+            return _timeout(started)
+        except urllib.error.URLError as exc:
+            reason = exc.reason
+            if isinstance(reason, TimeoutError):
+                return _timeout(started)
+            return {
+                "http_status": None,
+                "response_body": None,
+                "elapsed_seconds": Decimal(str(round(time.perf_counter() - started, 6))),
+                "error": f"추론 요청에 실패했습니다: {reason}",
+                "generation_state": None,
+            }
+
+
+def _timeout(started: float) -> dict[str, Any]:
+    return {
+        "http_status": None,
+        "response_body": None,
+        "elapsed_seconds": Decimal(str(round(time.perf_counter() - started, 6))),
+        "error": "요청이 시간 초과되었습니다. 서버 작업이 끝났는지는 확인하지 않았습니다.",
+        "generation_state": None,
+    }
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        return None
+
+
+def _reuse_index(folder: Path) -> dict[str, dict[str, list[Path]]]:
+    if folder not in _REUSE_INDEX:
+        by_key: dict[str, list[Path]] = {}
+        by_batch: dict[str, list[Path]] = {}
+        calls = folder / "calls"
+        if calls.is_dir():
+            for path in sorted(calls.glob("*.json")):
+                try:
+                    record = read_json(path)
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                key = record.get("reuse_key")
+                if isinstance(key, str):
+                    by_key.setdefault(key, []).append(path)
+                batch_id = record.get("batch_id")
+                if isinstance(batch_id, str):
+                    by_batch.setdefault(batch_id, []).append(path)
+        _REUSE_INDEX[folder] = {"key": by_key, "batch": by_batch}
+    return _REUSE_INDEX[folder]
+
+
+def reuse_folders(run_dir: Path, donor_dirs: list[Path] | None = None) -> list[Path]:
+    folders = [run_dir]
+    if donor_dirs is not None:
+        folders.extend(donor_dirs)
+    elif RUNS_ROOT in run_dir.parents:
+        folders.extend(RUNS_ROOT / name for name in SUCCESS_DONOR_RUNS if RUNS_ROOT / name != run_dir)
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for folder in folders:
+        resolved = folder.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique.append(folder)
+    return unique
+
+
+def a03_reuse_links() -> dict[str, dict[str, str]]:
+    global _A03_REUSE_LINKS
+    if _A03_REUSE_LINKS is None:
+        found: dict[str, dict[str, str]] = {}
+        for document in load_documents(RUNS_ROOT / A03_RUN_ID):
+            for candidate in document["candidates"]:
+                for item in candidate["batches"]:
+                    reused = item.get("reused_from")
+                    if item.get("status") == "ok" and isinstance(reused, str) and reused:
+                        found[reused] = {"batch_id": item["batch_id"], "candidate_id": candidate["candidate_id"]}
+        _A03_REUSE_LINKS = found
+    return _A03_REUSE_LINKS
+
+
+def donor_lineage(path: Path, record: dict[str, Any]) -> list[dict[str, str]] | None:
+    call_ref = record.get("call_ref") if isinstance(record.get("call_ref"), str) else rel(path)
+    run_id = path.parent.parent.name if path.parent.name == "calls" else path.parent.name
+    origin = {"run_id": run_id, "role": "origin", "call_ref": call_ref, "file_sha256": sha256_file(path)}
+    if run_id != A02_RUN_ID:
+        return [origin]
+    link = a03_reuse_links().get(call_ref)
+    if link is None:
+        return None
+    return [{
+        "run_id": A03_RUN_ID,
+        "role": "a03_batch",
+        "batch_id": link["batch_id"],
+        "candidate_id": link["candidate_id"],
+        "call_ref": call_ref,
+    }, origin]
+
+
+def _request_wire(body: Any) -> bytes | None:
+    try:
+        return compact(body).encode("utf-8")
+    except (TypeError, ValueError):
+        return None
+
+
+def _validated_reuse(record: dict[str, Any], path: Path, key: str, built: dict[str, Any], batch: dict[str, Any]) -> str | None:
+    if record.get("reuse_key") != key or record.get("error") is not None or not isinstance(record.get("parsed"), list):
+        return "reuse_key"
+    if record.get("http_status") != 200 or record.get("finish_reason") != "stop":
+        return "http"
+    raw = record.get("response_body")
+    if not isinstance(raw, str) or record.get("response_sha256") != sha256_text(raw):
+        return "response"
+    stored_wire = _request_wire(record.get("request_body"))
+    current_wire = built["wire"]
+    if (
+        stored_wire is None
+        or sha256_bytes(stored_wire) != record.get("request_sha256")
+        or len(stored_wire) != record.get("request_bytes")
+        or sha256_bytes(stored_wire) != sha256_bytes(current_wire)
+        or len(stored_wire) != len(current_wire)
+    ):
+        return "body"
+    images = [item.get("sha256") for item in record.get("transmitted_images") or [] if isinstance(item, dict)]
+    if images != [item["sha256"] for item in built["images"]]:
+        return "image"
+    replay = interpret_transport(
+        {"http_status": record["http_status"], "response_body": raw, "error": None},
+        batch["target_ids"], built["eligible"],
+    )
+    if not replay["ok"] or canonical(replay["parsed"]) != canonical(record["parsed"]):
+        return "reparse"
+    return None
+
+
+def locate_reuse(run_dir: Path, key: str, built: dict[str, Any], batch: dict[str, Any], donor_dirs: list[Path] | None = None) -> dict[str, Any]:
+    valid: list[tuple[Path, dict[str, Any]]] = []
+    batch_paths: list[Path] = []
+    seen: set[Path] = set()
+    for folder in reuse_folders(run_dir, donor_dirs):
+        index = _reuse_index(folder)
+        batch_paths.extend(index["batch"].get(batch["batch_id"], []))
+        for path in index["key"].get(key, []):
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            try:
+                record = read_json(path)
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(record, dict) or _validated_reuse(record, path, key, built, batch):
+                continue
+            lineage = donor_lineage(path, record)
+            if lineage is None:
+                return {"outcome": "mismatch", "error": "A02 원 call이 A03 재사용 배치에 연결되어 있지 않습니다."}
+            record["_source_path"] = str(path)
+            valid.append((path, record | {"_lineage": lineage}))
+    if len(valid) > 1:
+        return {"outcome": "conflict", "error": "같은 reuse_key가 여러 donor에 있습니다."}
+    if len(valid) == 1:
+        _path, record = valid[0]
+        return {"outcome": "reuse", "record": record, "lineage": record["_lineage"]}
+    if batch_paths:
+        return {"outcome": "mismatch", "error": "donor 응답이 현재 요청 본문, 이미지, 원응답 재검증과 다릅니다."}
+    return {"outcome": "none"}
+
+
+def apply_success(
+    batch: dict[str, Any],
+    parsed: list[dict[str, Any]],
+    call_ref: str,
+    reused_from: str | None,
+    lineage: list[dict[str, str]] | None = None,
+    response_sha: str | None = None,
+) -> None:
+    batch["status"] = "ok"
+    batch["decisions"] = parsed
+    batch["error"] = None
+    batch["call_ref"] = call_ref
+    batch["reused_from"] = reused_from
+    if lineage is not None:
+        batch["donor_lineage"] = lineage
+    if response_sha is not None:
+        batch["reused_response_file_sha256"] = response_sha
+
+
+def store_call(run_dir: Path, run_id: str, record: dict[str, Any]) -> str:
+    calls = run_dir / "calls"
+    calls.mkdir(parents=True, exist_ok=True)
+    path = calls / f"{record['call_id']}.json"
+    record["call_ref"] = f"tests/T4/runs/{run_id}/calls/{record['call_id']}.json"
+    write_json_durable(path, record)
+    index = _reuse_index(run_dir)
+    index["key"].setdefault(record["reuse_key"], []).append(path)
+    if isinstance(record.get("batch_id"), str):
+        index["batch"].setdefault(record["batch_id"], []).append(path)
+    return record["call_ref"]
+
+
+def _mark_unknown(batch: dict[str, Any], message: str) -> None:
+    batch["status"] = "unknown"
+    batch["error"] = message
+    batch["decisions"] = None
+
+
+def _elapsed_seconds(value: Any) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return Decimal(0)
+    return Decimal(str(value))
+
+
+def _note_sent(run: dict[str, Any], batch: dict[str, Any], transport: dict[str, Any]) -> None:
+    run["counts"]["http_attempts"] = int(run["counts"]["http_attempts"]) + 1
+    batch["http_attempts"] = int(batch["http_attempts"]) + 1
+    run["timing"]["inference_seconds"] = run["timing"]["inference_seconds"] + _elapsed_seconds(transport.get("elapsed_seconds"))
+    if batch["context_ids"]:
+        run["counts"]["context_reinputs"] = int(run["counts"]["context_reinputs"]) + len(batch["context_ids"])
+
+
+def _close_unknown_attempt(ledger_path: Path | None, reuse_key_value: str) -> None:
+    if ledger_path is None or not ledger_path.is_file():
+        return
+    with budget_lock(ledger_path.parent):
+        payload = load_budget(ledger_path)
+        changed = False
+        for attempt in payload["attempts"]:
+            if attempt.get("reuse_key") == reuse_key_value and attempt.get("state") == "unknown":
+                attempt["state"] = "completed"
+                changed = True
+        if changed:
+            save_budget(ledger_path, payload)
+
+
+def _stored_call_is_local(run_dir: Path, path: Path) -> bool:
+    try:
+        path.resolve().relative_to((run_dir / "calls").resolve())
+    except ValueError:
+        return False
+    return path.is_file()
+
+
+def execute_batch(
+    run_dir: Path,
+    run: dict[str, Any],
+    document: dict[str, Any],
+    candidate: dict[str, Any],
+    batch: dict[str, Any],
+    client: InferClient,
+    *,
+    allow_http: bool,
+    ledger_path: Path | None = None,
+    donor_dirs: list[Path] | None = None,
+) -> str:
+    if batch["status"] == "ok":
+        return "skipped"
+    if batch["status"] == "failed":
+        return "skipped_failed"
+    if batch["status"] == "unknown":
+        return "skipped_unknown"
+    built = build_request(candidate, batch, decisions_so_far(candidate))
+    batch["eligible_context_ids"] = built["eligible"]
+    batch["request_bytes"] = built["request_bytes"]
+    batch["text_chars"] = built["text_chars"]
+    batch["target_image_bytes"] = built["target_image_bytes"]
+    batch["context_image_bytes"] = built["context_image_bytes"]
+    key = reuse_key(document, candidate, batch, built)
+    located = locate_reuse(run_dir, key, built, batch, donor_dirs)
+    if located["outcome"] == "reuse":
+        existing = located["record"]
+        source = Path(existing["_source_path"])
+        _close_unknown_attempt(ledger_path, key)
+        if _stored_call_is_local(run_dir, source):
+            apply_success(batch, existing["parsed"], existing["call_ref"], None)
+            if int(batch.get("http_attempts") or 0) == 0:
+                _note_sent(run, batch, {"elapsed_seconds": existing.get("elapsed_seconds")})
+            if len(built["images"]) > 1 and existing.get("http_status") == 200:
+                run["model_calls_observed"]["multi_image_http_accepted"] = True
+            return "ok"
+        apply_success(batch, existing["parsed"], existing["call_ref"], existing["call_ref"], located["lineage"], sha256_file(source))
+        return "reused"
+    if located["outcome"] in {"conflict", "mismatch"}:
+        batch["status"] = "failed"
+        batch["error"] = located["error"]
+        return "failed"
+    if not allow_http:
+        return "pending"
+    if ledger_path is None or not ledger_path.is_file():
+        return "budget_blocked"
+    wire_sha = sha256_bytes(built["wire"])
+    try:
+        reserved = reserve_normal(ledger_path, run_id=run["run_id"], batch_id=batch["batch_id"], reuse_key=key, request_sha256=wire_sha)
+    except RuntimeError as exc:
+        batch["error"] = str(exc)
+        return "budget_blocked"
+    if reserved["result"] == "unknown_exists":
+        _mark_unknown(batch, "처리 여부가 확인되지 않은 예약이 있어 재전송하지 않습니다.")
+        return "unknown"
+    if reserved["result"] != "reserved":
+        return "budget_blocked"
+    attempt_id = str(reserved["attempt_id"])
+    transport = client.post(built["wire"])
+    disposition = transport_disposition(transport)
+    if disposition == "pre_generation":
+        room = reclassify_pre_generation(ledger_path, attempt_id)
+        if room == "exhausted":
+            _mark_unknown(batch, "생성 전 복구 한도를 넘었습니다. 자동 재전송하지 않습니다.")
+            return "unknown"
+        batch["error"] = "생성 전 상태로 확인되어 일반 전송 예산에 넣지 않았습니다."
+        return "pre_generation"
+    if disposition == "unknown":
+        _mark_unknown(batch, "요청의 처리 여부를 확인하지 못했습니다. 자동 재전송하지 않습니다.")
+        _note_sent(run, batch, transport)
+        return "unknown"
+    interpreted = interpret_transport(transport, batch["target_ids"], built["eligible"])
+    response_body = transport.get("response_body")
+    record = {
+        "schema_version": SCHEMA_VERSION,
+        "call_id": str(uuid.uuid4()),
+        "batch_id": batch["batch_id"],
+        "candidate_id": candidate["candidate_id"],
+        "video_id": document["video_id"],
+        "reuse_key": key,
+        "url": INFER_URL,
+        "request_sha256": wire_sha,
+        "request_bytes": built["request_bytes"],
+        "request_body": built["body"],
+        "transmitted_images": built["images"],
+        "http_status": transport.get("http_status"),
+        "response_body": response_body,
+        "response_sha256": sha256_text(response_body) if isinstance(response_body, str) else None,
+        "content": interpreted["content"],
+        "reasoning": interpreted["reasoning"],
+        "finish_reason": interpreted["finish_reason"],
+        "usage": interpreted["usage"],
+        "parsed": interpreted["parsed"],
+        "error": interpreted["error"],
+        "elapsed_seconds": transport["elapsed_seconds"],
+        "started_at": utc_now(),
+        "reused_from": None,
+    }
+    try:
+        call_ref = store_call(run_dir, run["run_id"], record)
+    except OSError:
+        if not (run_dir / "calls" / f"{record['call_id']}.json").is_file():
+            _mark_unknown(batch, "응답 파일을 보존하지 못했습니다. 자동 재전송하지 않습니다.")
+            return "unknown"
+        raise
+    update_attempt(ledger_path, attempt_id, state="completed")
+    _note_sent(run, batch, transport)
+    if interpreted["ok"]:
+        apply_success(batch, interpreted["parsed"], call_ref, None)
+        if len(built["images"]) > 1 and transport.get("http_status") == 200:
+            run["model_calls_observed"]["multi_image_http_accepted"] = True
+        return "ok"
+    batch["status"] = "failed"
+    batch["error"] = interpreted["error"]
+    batch["call_ref"] = call_ref
+    return "failed"
+
+
+def execute_selected(
+    run_dir: Path,
+    documents: list[dict[str, Any]],
+    run: dict[str, Any],
+    refs: list[tuple[str, int]],
+    client: InferClient,
+    ledger_path: Path | None = None,
+    donor_dirs: list[Path] | None = None,
+) -> str:
+    for candidate_id, batch_index in refs:
+        document, candidate, batch = find_batch(documents, candidate_id, batch_index)
+        outcome = execute_batch(
+            run_dir, run, document, candidate, batch, client,
+            allow_http=True, ledger_path=ledger_path, donor_dirs=donor_dirs,
+        )
+        save_documents(run_dir, documents)
+        refresh_counts(run, documents)
+        write_json(run_dir / "run.json", run)
+        print(f"{candidate_id}#b{batch_index} {outcome} http={run['counts']['http_attempts']} reused={run['counts']['reused']}", flush=True)
+        if outcome in {"failed", "unknown", "budget_blocked", "pre_generation"}:
+            return outcome
+    return "done"
+
+
+def smoke_refs(documents: list[dict[str, Any]], sizes: dict[str, int]) -> list[tuple[str, int]]:
+    _document, candidate, batch = find_batch(documents, SMOKE_CANDIDATE, 0)
+    frames = iter_frames(candidate)
+    card_id = frame_id_of("H2WN130OzLg", 0, SMOKE_PTS)
+    if batch["context_ids"] or card_id not in batch["target_ids"] or not any(SMOKE_SAMPLE_INDEX in frames[frame_id]["sample_indices"] for frame_id in batch["target_ids"]):
+        raise RuntimeError("smoke 첫 묶음이 H2 u25의 sample_index 1을 포함하지 않습니다.")
+    if len(batch["context_ids"]) + len(batch["target_ids"]) > IMAGES_PER_REQUEST:
+        raise RuntimeError("smoke 첫 묶음이 요청 이미지 상한을 넘습니다.")
+    ranked = []
+    for index, candidate_id in enumerate(item for item in PILOT if item != SMOKE_CANDIDATE):
+        other = find_batch(documents, candidate_id, 0)[2]
+        if other["context_ids"]:
+            raise RuntimeError(f"{candidate_id} 첫 묶음에 context가 있습니다.")
+        if len(other["context_ids"]) + len(other["target_ids"]) > IMAGES_PER_REQUEST:
+            raise RuntimeError(f"{candidate_id} 첫 묶음이 요청 이미지 상한을 넘습니다.")
+        if other["batch_id"] not in sizes:
+            raise RuntimeError(f"{other['batch_id']} 직렬화 크기가 없습니다.")
+        ranked.append((sizes[other["batch_id"]], index, candidate_id))
+    _size, _index, second = min(ranked, key=lambda item: (-item[0], item[1]))
+    return [(SMOKE_CANDIDATE, 0), (second, 0)]
+
+
+def mode_refs(documents: list[dict[str, Any]], mode: str, sizes: dict[str, int] | None = None) -> list[tuple[str, int]]:
+    if mode == "smoke":
+        return smoke_refs(documents, sizes or {})
+    present = [candidate["candidate_id"] for document in documents for candidate in document["candidates"]]
+    if mode == "pilot":
+        ids = [item for item in PILOT if item in present]
+    else:
+        ids = [item for item in (entry[0] for entry in CANDIDATES) if item in present] or present
+    refs = []
+    for candidate_id in ids:
+        document, candidate, _batch = find_batch(documents, candidate_id, 0)
+        del document
+        for batch in candidate["batches"]:
+            if mode == "resume" and batch["status"] != "pending":
+                continue
+            if mode == "pilot" and batch["status"] == "failed":
+                continue
+            if mode == "pilot" and batch["status"] == "ok":
+                continue
+            refs.append((candidate_id, batch["batch_index"]))
+    return refs
+
+
+def _fence_mark(line: str) -> tuple[str, int, str] | None:
+    if not line or line[0] in "\t>":
+        return None
+    indent = 0
+    while indent < len(line) and line[indent] == " ":
+        indent += 1
+    if indent > 3:
+        return None
+    body = line[indent:]
+    if not body or body[0] not in "`~":
+        return None
+    marker = body[0]
+    length = 0
+    while length < len(body) and body[length] == marker:
+        length += 1
+    if length < 3:
+        return None
+    return marker, length, body[length:]
+
+
+def _open_fence(line: str) -> tuple[str, int] | None:
+    found = _fence_mark(line)
+    if found is None:
+        return None
+    marker, length, info = found
+    if marker == "`" and "`" in info:
+        return None
+    return marker, length
+
+
+def _closes_fence(line: str, marker: str, length: int) -> bool:
+    found = _fence_mark(line)
+    if found is None:
+        return False
+    found_marker, found_length, info = found
+    return found_marker == marker and found_length >= length and info.strip() == ""
+
+
+def approvals_of(text: str, *, run_id: str | None = None, manifest_sha256: str | None = None) -> dict[str, Any]:
+    latest: dict[tuple[str, str, str], bool] = {}
+    interpretable = True
+    fence: tuple[str, int] | None = None
+    for raw in text.splitlines():
+        if fence is None:
+            opened = _open_fence(raw)
+            if opened is not None:
+                fence = opened
+                continue
+            if raw.startswith((" ", "\t", ">")):
+                continue
+            line = raw.strip()
+            if not line.startswith("approval "):
+                continue
+            match = _APPROVAL_LINE.fullmatch(line)
+            if match is None:
+                interpretable = False
+                continue
+            scope, value, directive_run, directive_manifest = match.groups()
+            latest[(scope, directive_run, directive_manifest)] = value == "true"
+            continue
+        if _closes_fence(raw, fence[0], fence[1]):
+            fence = None
+    if fence is not None:
+        interpretable = False
+    result: dict[str, Any] = {"pilot": False, "full": False, "interpretable": interpretable}
+    if not interpretable or not run_id or not manifest_sha256:
+        return result
+    for scope in ("pilot", "full"):
+        result[scope] = bool(latest.get((scope, run_id, manifest_sha256), False))
+    return result
+
+
+def identity_problems(manifest: dict[str, Any]) -> list[str]:
+    problems = []
+    if manifest.get("prompt_sha256") != prompt_sha() or manifest.get("prompt_text") != prompts.ACTIVE_PROMPT:
+        problems.append("프롬프트가 manifest와 다릅니다.")
+    if manifest.get("logic_version") != LOGIC_VERSION or manifest.get("config_id") != CONFIG_ID:
+        problems.append("설정 식별자가 manifest와 다릅니다.")
+    recorded = {item["path"]: item["sha256"] for item in manifest.get("code") or []}
+    for item in code_records():
+        if recorded.get(item["path"]) != item["sha256"]:
+            problems.append(f"코드 해시가 manifest와 다릅니다: {item['path']}")
+    for item in manifest["input"]["candidates"]:
+        if sha256_file(ROOT / item["path"]) != item["sha256"]:
+            problems.append(f"입력 해시가 manifest와 다릅니다: {item['path']}")
+    return problems
+
+
+def _nearest_even(value: float) -> int:
+    rounded = int(round(value))
+    if rounded % 2 == 0:
+        return max(2, rounded)
+    lower = max(2, rounded - 1)
+    upper = rounded + 1
+    if abs(value - lower) <= abs(value - upper):
+        return lower
+    return upper
+
+
+def expected_vlm_size(width: int, height: int) -> tuple[int, int]:
+    limit = 1280
+    if width >= height:
+        if width <= limit:
+            return width, height
+        return limit, _nearest_even(height * limit / width)
+    if height <= limit:
+        return width, height
+    return _nearest_even(width * limit / height), limit
+
+
+def _png_matches(info: dict[str, Any], width: int, height: int) -> bool:
+    path = ROOT / str(info.get("path") or "")
+    if not path.is_file():
+        return False
+    data = path.read_bytes()
+    if sha256_bytes(data) != info.get("sha256") or int(info.get("bytes") or -1) != len(data):
+        return False
+    try:
+        header = extract.png_info(data)
+    except extract.ExtractError:
+        return False
+    return int(info.get("width") or 0) == header["width"] == width and int(info.get("height") or 0) == header["height"] == height
+
+
+def load_predecessor_frames() -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    root = RUNS_ROOT / A00_RUN_ID
+    index = read_json(root / "frames_index.json")
+    by_id = {}
+    for item in index.get("frames") or []:
+        if isinstance(item, dict) and item.get("frame_id"):
+            by_id[str(item["frame_id"])] = item
+    media = {}
+    for video_id in video_order([item[0] for item in CANDIDATES]):
+        document = read_json(root / video_id / "selected_frames.json")
+        media[video_id] = document["media"]
+    return by_id, media
+
+
+def _optional_int(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def reused_frame_record(
+    frame: dict[str, Any],
+    document: dict[str, Any],
+    prior: dict[str, Any] | None,
+    prior_media: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not prior or not prior.get("ok") or prior_media is None:
+        return None
+    media = document["media"]
+    if prior_media.get("path") != media["path"] or prior_media.get("recorded_sha256") != media["recorded_sha256"]:
+        return None
+    prior_size = _optional_int(prior_media.get("size"))
+    prior_mtime = _optional_int(prior_media.get("mtime_ns"))
+    current_size = _optional_int(media.get("size"))
+    current_mtime = _optional_int(media.get("mtime_ns"))
+    if None in {prior_size, prior_mtime, current_size, current_mtime} or prior_size != current_size or prior_mtime != current_mtime:
+        return None
+    prior_stream = _optional_int(prior_media.get("stream_index"))
+    frame_stream = _optional_int(frame.get("stream_index"))
+    media_stream = _optional_int(media.get("stream_index"))
+    if None in {prior_stream, frame_stream, media_stream} or prior_stream != frame_stream or media_stream != frame_stream:
+        return None
+    prior_pts = _optional_int(prior.get("pts"))
+    showinfo_pts = _optional_int(prior.get("showinfo_pts"))
+    frame_pts = _optional_int(frame.get("pts"))
+    if None in {prior_pts, showinfo_pts, frame_pts} or prior_pts != frame_pts or showinfo_pts != frame_pts:
+        return None
+    incoming = prior.get("time_base_in") or {}
+    frame_base = frame["time_base"]
+    media_base = prior_media.get("time_base") or {}
+    current_base = media["time_base"]
+    incoming_n = _optional_int(incoming.get("numerator"))
+    incoming_d = _optional_int(incoming.get("denominator"))
+    frame_n = _optional_int(frame_base.get("numerator"))
+    frame_d = _optional_int(frame_base.get("denominator"))
+    media_n = _optional_int(media_base.get("numerator"))
+    media_d = _optional_int(media_base.get("denominator"))
+    current_n = _optional_int(current_base.get("numerator"))
+    current_d = _optional_int(current_base.get("denominator"))
+    if None in {incoming_n, incoming_d, frame_n, frame_d, media_n, media_d, current_n, current_d}:
+        return None
+    if (incoming_n, incoming_d) != (frame_n, frame_d) or (media_n, media_d) != (frame_n, frame_d) or (current_n, current_d) != (frame_n, frame_d):
+        return None
+    width = _optional_int(media.get("width"))
+    height = _optional_int(media.get("height"))
+    prior_width = _optional_int(prior_media.get("width"))
+    prior_height = _optional_int(prior_media.get("height"))
+    if None in {width, height, prior_width, prior_height} or (prior_width, prior_height) != (width, height):
+        return None
+    full = prior.get("full") or {}
+    vlm = prior.get("vlm") or {}
+    prefix = f"tests/T4/runs/{A00_RUN_ID}/frames/"
+    if not str(full.get("path") or "").startswith(prefix) or not str(vlm.get("path") or "").startswith(prefix):
+        return None
+    if prior.get("scale_filter") != extract.scale_filter(width, height):
+        return None
+    expect_w, expect_h = expected_vlm_size(width, height)
+    if not _png_matches(full, width, height) or not _png_matches(vlm, expect_w, expect_h):
+        return None
+    return {
+        "frame_id": frame["frame_id"],
+        "ok": True,
+        "pts": int(frame["pts"]),
+        "showinfo_pts": int(prior["showinfo_pts"]),
+        "seek": prior.get("seek"),
+        "duration": prior.get("duration"),
+        "time_base_in": {"numerator": int(incoming["numerator"]), "denominator": int(incoming["denominator"])},
+        "time_base_out": json_time_base(prior.get("time_base_out")),
+        "scale_filter": prior["scale_filter"],
+        "full": {
+            "path": full["path"],
+            "width": width,
+            "height": height,
+            "bytes": int(full["bytes"]),
+            "sha256": full["sha256"],
+        },
+        "vlm": {
+            "path": vlm["path"],
+            "width": expect_w,
+            "height": expect_h,
+            "bytes": int(vlm["bytes"]),
+            "sha256": vlm["sha256"],
+        },
+        "reused_from": {
+            "run_id": A00_RUN_ID,
+            "config_id": A00_CONFIG_ID,
+            "frames_index": f"tests/T4/runs/{A00_RUN_ID}/frames_index.json",
+        },
+    }
+
+
+def command_extract(run_dir: Path) -> int:
+    manifest = read_json(run_dir / "manifest.json")
+    problems = identity_problems(manifest)
+    if problems:
+        for problem in problems:
+            print_problem(problem, rel(run_dir / "manifest.json"), "extract")
+        return 1
+    documents = load_documents(run_dir)
+    run = read_json(run_dir / "run.json")
+    for key in ("decode_seconds", "resize_seconds", "inference_seconds", "render_seconds", "wall_seconds"):
+        run["timing"][key] = Decimal(str(run["timing"][key]))
+    existing = {}
+    index_path = run_dir / "frames_index.json"
+    if index_path.exists():
+        existing = {item["frame_id"]: item for item in read_json(index_path).get("frames") or []}
+    print(f"loading predecessor frames {A00_RUN_ID}", flush=True)
+    predecessor_frames, predecessor_media = load_predecessor_frames()
+    kept: dict[str, dict[str, Any]] = {}
+    jobs = []
+    seen: set[str] = set()
+    for document in documents:
+        for candidate in document["candidates"]:
+            for frame in candidate["frames"]:
+                if frame["frame_id"] in seen:
+                    continue
+                seen.add(frame["frame_id"])
+                if len(seen) % 200 == 0:
+                    print(f"reuse check {len(seen)}", flush=True)
+                prior = existing.get(frame["frame_id"])
+                if prior and prior.get("ok") and _files_match(prior):
+                    kept[frame["frame_id"]] = prior
+                    _attach_frame(documents, frame["frame_id"], prior)
+                    continue
+                donor = reused_frame_record(frame, document, predecessor_frames.get(frame["frame_id"]), predecessor_media.get(document["video_id"]))
+                if donor is not None:
+                    kept[frame["frame_id"]] = donor
+                    _attach_frame(documents, frame["frame_id"], donor)
+                    continue
+                full_rel = f"tests/T4/runs/{run['run_id']}/frames/{document['video_id']}/s{frame['stream_index']}_pts{frame['pts']}_full.png"
+                vlm_rel = f"tests/T4/runs/{run['run_id']}/frames/{document['video_id']}/s{frame['stream_index']}_pts{frame['pts']}_vlm.png"
+                jobs.append({
+                    "frame_id": frame["frame_id"],
+                    "media_path": str(ROOT / document["media"]["path"]),
+                    "stream_index": frame["stream_index"],
+                    "pts": frame["pts"],
+                    "video_seconds": frame["video_seconds"],
+                    "time_base": frame["time_base"],
+                    "source_width": document["media"]["width"],
+                    "source_height": document["media"]["height"],
+                    "full_path": str(ROOT / full_rel),
+                    "vlm_path": str(ROOT / vlm_rel),
+                    "full_rel": full_rel,
+                    "vlm_rel": vlm_rel,
+                })
+    ffmpeg = manifest["runtime"]["ffmpeg"]["path"]
+
+    def progress(done: int, total: int, label: str) -> None:
+        print(f"extract {done}/{total} {label}", flush=True)
+
+    started = time.monotonic()
+    extracted = extract.extract_jobs(ffmpeg, jobs, on_progress=progress) if jobs else {"records": [], "decode_seconds": Decimal(0), "resize_seconds": Decimal(0)}
+    by_id = dict(kept)
+    failures = []
+    for record in extracted["records"]:
+        if record["ok"]:
+            stored = {
+                "frame_id": record["frame_id"],
+                "ok": True,
+                "pts": record["pts"],
+                "showinfo_pts": record["showinfo_pts"],
+                "seek": record["seek"],
+                "duration": record["duration"],
+                "time_base_in": json_time_base(record["time_base_in"]),
+                "time_base_out": json_time_base(record["time_base_out"]),
+                "scale_filter": record["scale_filter"],
+                "full": record["full"],
+                "vlm": record["vlm"],
+            }
+            by_id[record["frame_id"]] = stored
+            _attach_frame(documents, record["frame_id"], stored)
+        else:
+            failures.append({"frame_id": record["frame_id"], "ok": False, "error": record["error"], "pts": record["pts"]})
+            by_id[record["frame_id"]] = failures[-1]
+    run["timing"]["decode_seconds"] = run["timing"]["decode_seconds"] + extracted["decode_seconds"]
+    run["timing"]["resize_seconds"] = run["timing"]["resize_seconds"] + extracted["resize_seconds"]
+    run["timing"]["wall_seconds"] = run["timing"]["wall_seconds"] + Decimal(str(round(time.monotonic() - started, 6)))
+    write_json(index_path, {"frames": list(by_id.values()), "problems": [item["error"] for item in failures]})
+    sizes = {}
+    if not failures:
+        for document in documents:
+            for candidate in document["candidates"]:
+                for batch in candidate["batches"]:
+                    built = build_request(candidate, batch, {})
+                    batch["request_bytes"] = built["request_bytes"]
+                    batch["text_chars"] = built["text_chars"]
+                    batch["target_image_bytes"] = built["target_image_bytes"]
+                    batch["context_image_bytes"] = built["context_image_bytes"]
+                    batch["eligible_context_ids"] = []
+                    sizes[batch["batch_id"]] = built["request_bytes"]
+        write_json(run_dir / "request_plan.json", {"eligible_context_assumed": [], "batches": {
+            batch["batch_id"]: {
+                "request_bytes": batch["request_bytes"],
+                "text_chars": batch["text_chars"],
+                "target_image_bytes": batch["target_image_bytes"],
+                "context_image_bytes": batch["context_image_bytes"],
+            }
+            for document in documents
+            for candidate in document["candidates"]
+            for batch in candidate["batches"]
+        }})
+    run["phase"] = "extracted" if not failures else "frame_error"
+    run["run_status"] = "pending" if not failures else "failed"
+    run["problems"] = [item["error"] for item in failures]
+    run["counts"]["pending"] = sum(1 for document in documents for candidate in document["candidates"] for batch in candidate["batches"] if batch["status"] == "pending")
+    reused_count = sum(1 for item in by_id.values() if item.get("ok") and item.get("reused_from"))
+    created_count = sum(1 for item in by_id.values() if item.get("ok") and not item.get("reused_from"))
+    run["frame_files"] = {"reused": reused_count, "created": created_count}
+    save_documents(run_dir, documents)
+    write_json(run_dir / "run.json", run)
+    _write_views(run_dir, documents, run)
+    print(f"extract frames {len(by_id)} reused {reused_count} created {created_count} failures {len(failures)} http 0", flush=True)
+    return 1 if failures else 0
+
+
+def _files_match(record: dict[str, Any]) -> bool:
+    for key in ("full", "vlm"):
+        info = record.get(key) or {}
+        path = ROOT / str(info.get("path") or "")
+        if not path.is_file() or sha256_file(path) != info.get("sha256"):
+            return False
+    return True
+
+
+def _attach_frame(documents: list[dict[str, Any]], frame_id: str, record: dict[str, Any]) -> None:
+    image = {"full": record["full"], "vlm": record["vlm"]}
+    for document in documents:
+        for candidate in document["candidates"]:
+            for frame in candidate["frames"]:
+                if frame["frame_id"] == frame_id:
+                    frame["full"] = image["full"]
+                    frame["vlm"] = image["vlm"]
+                    frame["reused_from"] = record.get("reused_from")
+
+
+def load_sizes(run_dir: Path) -> dict[str, int]:
+    path = run_dir / "request_plan.json"
+    if not path.is_file():
+        return {}
+    payload = read_json(path)
+    return {key: int(value["request_bytes"]) for key, value in payload["batches"].items()}
+
+
+def prepare_run(run_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]] | None:
+    if not (run_dir / "manifest.json").is_file():
+        print_problem("run이 없습니다.", str(run_dir), run_dir.name)
+        return None
+    manifest = read_json(run_dir / "manifest.json")
+    problems = identity_problems(manifest)
+    if problems:
+        for problem in problems:
+            print_problem(problem, rel(run_dir / "manifest.json"), run_dir.name)
+        return None
+    documents = load_documents(run_dir)
+    run = read_json(run_dir / "run.json")
+    for key in ("decode_seconds", "resize_seconds", "inference_seconds", "render_seconds", "wall_seconds"):
+        run["timing"][key] = Decimal(str(run["timing"][key]))
+    return manifest, documents, run
+
+
+def frames_ready(run_dir: Path, documents: list[dict[str, Any]]) -> str | None:
+    index_path = run_dir / "frames_index.json"
+    if not index_path.is_file():
+        return "프레임 추출 결과가 없습니다."
+    payload = read_json(index_path)
+    if payload.get("problems"):
+        return "frame_error가 있어 추론을 시작하지 않습니다."
+    needed = {frame["frame_id"] for document in documents for candidate in document["candidates"] for frame in candidate["frames"]}
+    have = {item["frame_id"] for item in payload.get("frames") or [] if item.get("ok")}
+    if needed != have:
+        return "추출된 프레임이 계획과 다릅니다."
+    for frame in (frame for document in documents for candidate in document["candidates"] for frame in candidate["frames"]):
+        if not frame.get("vlm") or not _files_match({"full": frame["full"], "vlm": frame["vlm"]}):
+            return f"{frame['frame_id']} 이미지 연결이 없습니다."
+    return None
+
+
+def command_execute(run_dir: Path, mode: str) -> int:
+    if run_dir.name in {A00_RUN_ID, A01_RUN_ID, A02_RUN_ID, A03_RUN_ID}:
+        print_problem("기존 run은 수정하지 않습니다.", rel(run_dir), mode)
+        return 1
+    prepared = prepare_run(run_dir)
+    if prepared is None:
+        return 1
+    manifest, documents, run = prepared
+    if run.get("quality_status") == "accepted":
+        print_problem("실행 결과가 quality_status=accepted를 만들지 않습니다.", rel(run_dir / "run.json"), mode)
+        return 1
+    if mode in {"smoke", "pilot", "resume"}:
+        problem = frames_ready(run_dir, documents)
+        if problem:
+            print_problem(problem, rel(run_dir / "frames_index.json"), mode)
+            return 1
+    decision_path = run_dir / "review_decision.md"
+    manifest_hash = sha256_file(run_dir / "manifest.json")
+    decision_text = decision_path.read_text(encoding="utf-8") if decision_path.exists() else ""
+    approved = approvals_of(decision_text, run_id=run["run_id"], manifest_sha256=manifest_hash)
+    if not approved["interpretable"]:
+        print_problem("승인 기록을 해석할 수 없어 전송하지 않습니다.", rel(decision_path), mode)
+        return 2
+    if mode == "pilot" and not approved["pilot"]:
+        print_problem("pilot 확대 승인이 현재 run과 manifest에 없습니다.", rel(decision_path), "pilot")
+        return 2
+    if mode == "resume" and not approved["full"]:
+        print_problem("12개 범위 재개 승인이 현재 run과 manifest에 없습니다.", rel(decision_path), "resume")
+        return 2
+    ledger = budget_path(str(manifest.get("work_id") or WORK_ID))
+    if not ledger.is_file() or validate_budget(read_json(ledger)):
+        print_problem("작업 HTTP 예산 원장이 없거나 상한이 명시되지 않았습니다.", str(ledger), mode)
+        return 2
+    try:
+        refs = mode_refs(documents, mode, load_sizes(run_dir) if mode == "smoke" else None)
+    except RuntimeError as exc:
+        print_problem(str(exc), rel(run_dir), mode)
+        return 1
+    if mode == "smoke":
+        run["smoke"] = {"refs": [{"candidate_id": candidate_id, "batch_index": index} for candidate_id, index in refs], "max_http_requests": 2}
+    started = time.monotonic()
+    outcome = execute_selected(run_dir, documents, run, refs, InferClient(), ledger)
+    run["timing"]["wall_seconds"] = run["timing"]["wall_seconds"] + Decimal(str(round(time.monotonic() - started, 6)))
+    run["phase"] = mode
+    if run.get("quality_status") == "accepted":
+        run["quality_status"] = "pending_review"
+    refresh_counts(run, documents)
+    run["usage"] = sum_usage(run_dir)
+    run["run_status"] = rollup_status([batch["status"] for document in documents for candidate in document["candidates"] for batch in candidate["batches"]])
+    run["finished_at"] = utc_now()
+    save_documents(run_dir, documents)
+    write_json(run_dir / "run.json", run)
+    _write_views(run_dir, documents, run)
+    write_json(run_dir / "run.json", run)
+    if mode == "smoke":
+        _write_decision(run_dir, documents, run, outcome)
+    print(f"{mode} {outcome} http {run['counts']['http_attempts']} status {run['run_status']}", flush=True)
+    return 0 if outcome == "done" else 1
+
+
+def refresh_counts(run: dict[str, Any], documents: list[dict[str, Any]]) -> None:
+    counts = {"new": 0, "reused": 0, "failed": 0, "pending": 0, "unknown": 0}
+    for document in documents:
+        for candidate in document["candidates"]:
+            for batch in candidate["batches"]:
+                if batch["status"] == "failed":
+                    counts["failed"] += 1
+                elif batch["status"] == "unknown":
+                    counts["unknown"] += 1
+                elif batch["status"] == "pending":
+                    counts["pending"] += 1
+                elif batch.get("reused_from"):
+                    counts["reused"] += 1
+                elif batch["status"] == "ok":
+                    counts["new"] += 1
+    counts["http_attempts"] = run["counts"]["http_attempts"]
+    counts["context_reinputs"] = run["counts"]["context_reinputs"]
+    run["counts"] = counts
+
+
+def sum_usage(run_dir: Path) -> dict[str, Any] | None:
+    calls = run_dir / "calls"
+    if not calls.is_dir():
+        return None
+    totals: dict[str, int] = {}
+    seen = False
+    for path in sorted(calls.glob("*.json")):
+        record = read_json(path)
+        usage = record.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        seen = True
+        for key, value in usage.items():
+            if isinstance(value, int) and not isinstance(value, bool):
+                totals[key] = totals.get(key, 0) + value
+    return totals or ({"incomplete": True} if seen else None)
+
+
+def command_render(run_dir: Path) -> int:
+    prepared = prepare_run(run_dir)
+    if prepared is None:
+        return 1
+    _manifest, documents, run = prepared
+    started = time.monotonic()
+    save_documents(run_dir, documents)
+    run["timing"]["render_seconds"] = run["timing"]["render_seconds"] + Decimal(str(round(time.monotonic() - started, 6)))
+    write_json(run_dir / "run.json", run)
+    _write_views(run_dir, documents, run)
+    print(f"render {rel(run_dir)}", flush=True)
+    return 0
+
+
+def _optional_json(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    payload = read_json(path)
+    return payload if isinstance(payload, dict) else None
+
+
+def closeout_payload(documents: list[dict[str, Any]], run: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
+    targets: list[str] = []
+    incomplete: dict[str, list[str]] = {"pending": [], "failed": [], "unknown": []}
+    for document in documents:
+        for candidate in document["candidates"]:
+            for batch in candidate["batches"]:
+                targets.extend(batch["target_ids"])
+                if batch["status"] in incomplete:
+                    incomplete[batch["status"]].append(batch["batch_id"])
+    retained_path = ROOT / REVIEW_RETAINED_PATH
+    route_path = ROOT / ROUTE_REVIEW_PATH
+    pack = review.build_contrast_pack(
+        documents,
+        _optional_json(retained_path),
+        _optional_json(route_path),
+        retained_sha256=sha256_file(retained_path) if retained_path.is_file() else None,
+        route_sha256=sha256_file(route_path) if route_path.is_file() else None,
+    )
+    ledger_summary = None
+    ledger = budget_path(str(manifest.get("work_id") or WORK_ID))
+    if ledger.is_file():
+        payload = read_json(ledger)
+        if validate_budget(payload) is None:
+            counts = budget_counts(payload)
+            ledger_summary = {
+                "work_id": payload["work_id"],
+                "normal_new_http_limit": payload["normal_new_http_limit"],
+                "normal_consumed": counts["normal"],
+                "recovery_limit": payload["pre_generation_recovery_limit"],
+                "recovery_consumed": counts["recovery"],
+                "historical_http": payload["historical_http"],
+                "historical_counted_in_this_work": False,
+            }
+    return {
+        "accepted": False,
+        "quality_status": run.get("quality_status"),
+        "note": "HTTP 성공이나 구조 검사는 품질 채택이 아니다.",
+        "target_coverage": {"count": len(targets), "unique": len(set(targets)), "duplicate": len(targets) != len(set(targets))},
+        "source": {
+            "prompt_sha256": manifest.get("prompt_sha256"),
+            "code": manifest.get("code"),
+            "input_manifest_sha256": (manifest.get("input") or {}).get("manifest_sha256"),
+        },
+        "incomplete": incomplete,
+        "review_retained_uncertain": pack["review_retained_uncertain"],
+        "model_decision_counts": pack["model_decision_counts"],
+        "counts": run.get("counts"),
+        "usage": run.get("usage"),
+        "budget": ledger_summary,
+    }
+
+
+def _write_views(run_dir: Path, documents: list[dict[str, Any]], run: dict[str, Any]) -> None:
+    started = time.monotonic()
+    manifest = read_json(run_dir / "manifest.json")
+    rows = []
+    for document in documents:
+        atomic_write(run_dir / document["video_id"] / "review.md", review.render_video(document))
+        for candidate in document["candidates"]:
+            counts = {"ok": 0, "failed": 0, "pending": 0, "unknown": 0}
+            for batch in candidate["batches"]:
+                counts[batch["status"]] = counts.get(batch["status"], 0) + 1
+            rows.append({
+                "candidate_id": candidate["candidate_id"],
+                "status": candidate["status"],
+                "ok": counts.get("ok", 0),
+                "failed": counts.get("failed", 0),
+                "pending": counts.get("pending", 0),
+                "unknown": counts.get("unknown", 0),
+                "confirmed": len(candidate["selected_confirmed"]),
+                "uncertain": len(candidate["retained_uncertain"]),
+                "review": f"{document['video_id']}/review.md",
+            })
+    closeout = closeout_payload(documents, run, manifest)
+    if run.get("quality_status") == "accepted":
+        run["quality_status"] = "pending_review"
+        closeout["quality_status"] = run["quality_status"]
+    write_json(run_dir / "closeout.json", closeout)
+    summary = {
+        "run_id": run["run_id"],
+        "phase": run["phase"],
+        "run_status": run["run_status"],
+        "quality_status": run["quality_status"],
+        "config_id": CONFIG_ID,
+        "logic_version": LOGIC_VERSION,
+        "prompt_id": prompts.PROMPT_ID,
+        "video_count": len(documents),
+        "candidate_count": len(rows),
+        "out_of_scope_count": len(manifest["input"]["out_of_scope"]),
+        "out_of_scope": manifest["input"]["out_of_scope"],
+        "planned_requests": manifest["plan"]["requests"],
+        "candidates": rows,
+        "counts": run["counts"],
+        "timing": {key: format(Decimal(str(value)), "f") for key, value in run["timing"].items()},
+        "usage": run.get("usage"),
+        "frame_files": run.get("frame_files") or {"reused": 0, "created": 0},
+        "closeout": closeout,
+    }
+    atomic_write(run_dir / "index.md", review.render_index(summary))
+    structural = structural_validation(documents)
+    write_json(run_dir / "validation.json", structural)
+    run["timing"]["render_seconds"] = Decimal(str(run["timing"]["render_seconds"])) + Decimal(str(round(time.monotonic() - started, 6)))
+
+
+def structural_validation(documents: list[dict[str, Any]]) -> dict[str, Any]:
+    problems = []
+    for document in documents:
+        for candidate in document["candidates"]:
+            frames = candidate["frames"]
+            pts = [frame["pts"] for frame in frames]
+            if len(pts) != len(set(pts)):
+                problems.append(f"{candidate['candidate_id']} 동일 PTS를 두 번 판정합니다.")
+            frame_ids = [frame["frame_id"] for frame in frames]
+            problems.extend(batch_shape_problems(candidate["candidate_id"], frame_ids, candidate["batches"]))
+            for batch in candidate["batches"]:
+                if batch["status"] == "ok":
+                    decisions = batch.get("decisions") or []
+                    checked, error = validate_decisions({"frames": decisions}, batch["target_ids"], batch.get("eligible_context_ids") or [])
+                    if error or checked is None:
+                        problems.append(f"{batch['batch_id']} {error}")
+            sample_ids = [index for frame in frames for index in frame["sample_indices"]]
+            segment_ids = [index for segment in candidate["segments"] for index in segment["analysis_sample_indices"]]
+            if sorted(sample_ids) != sorted(segment_ids):
+                problems.append(f"{candidate['candidate_id']} 구간 소속이 프레임과 다릅니다.")
+            source = candidate["source_candidate"]
+            if source.get("candidate_source") == "budget_guard" and source.get("model_inference_success") is not False:
+                problems.append(f"{candidate['candidate_id']} 상위 실패 출처가 바뀌었습니다.")
+    counts = {"ok": 0, "failed": 0, "pending": 0, "unknown": 0}
+    for document in documents:
+        for candidate in document["candidates"]:
+            for batch in candidate["batches"]:
+                counts[batch["status"]] = counts.get(batch["status"], 0) + 1
+    return {
+        "ok": not problems,
+        "quality_score": None,
+        "problems": problems,
+        "counts": counts,
+        "note": "구조 검사이며 선정 품질 점수가 아니다.",
+    }
+
+
+def _write_decision(run_dir: Path, documents: list[dict[str, Any]], run: dict[str, Any], outcome: str) -> None:
+    manifest_hash = sha256_file(run_dir / "manifest.json")
+    lines = [
+        "# T4 smoke 관찰",
+        "",
+        f"- 시각: {utc_now()}",
+        f"- manifest_sha256: `{manifest_hash}`",
+        "- 검토자: 구현 실행의 smoke 기록. 품질 채택 권한으로 기록하지 않음",
+        "- quality_status: pending_review",
+        "- 채택: 아님",
+        "- pilot 시작: 아님",
+        f"approval pilot false run={run['run_id']} manifest={manifest_hash}",
+        f"approval full false run={run['run_id']} manifest={manifest_hash}",
+        f"- smoke 결과: `{outcome}`",
+        f"- HTTP 시도: {run['counts']['http_attempts']}",
+        f"- 신규/재사용/실패/pending: {run['counts']['new']}/{run['counts']['reused']}/{run['counts']['failed']}/{run['counts']['pending']}",
+        f"- usage: `{run.get('usage')}`",
+        "- VRAM: null",
+        "- 체크포인트, 컨텍스트 한도, 시각 토큰, 서버 이미지 한도: unknown",
+        "- image_use_confirmed: 전송 성공만으로 확정하지 않음. 아래 호출을 원본 이미지와 대조해야 함",
+        "",
+        "## 호출",
+        "",
+    ]
+    calls = run_dir / "calls"
+    if calls.is_dir():
+        for path in sorted(calls.glob("*.json")):
+            record = read_json(path)
+            lines.append(f"- `{record['call_ref']}` HTTP {record.get('http_status')} finish `{record.get('finish_reason')}` error `{record.get('error')}`")
+            for image in record.get("transmitted_images") or []:
+                lines.append(f"  - {image['role']} `{image['frame_id']}` `{image['path']}`")
+            if isinstance(record.get("parsed"), list):
+                for item in record["parsed"]:
+                    lines.append(f"  - {item['frame_id']} {item['decision']} duplicate_of={item['duplicate_of']} reason={item['reason']}")
+    lines.extend([
+        "",
+        "이 파일은 smoke에서 저장한 범위만 다룬다. exit 0이어도 pilot이나 전체 실행을 승인하지 않는다.",
+        "",
+    ])
+    atomic_write(run_dir / "review_decision.md", "\n".join(lines))
+
+
+PROTECTED_RUN_IDS = {A00_RUN_ID, A01_RUN_ID, A02_RUN_ID, A03_RUN_ID}
+
+
+def command_init_budget(work_id: str, normal_limit: int | None, recovery_limit: int | None) -> int:
+    if explicit_limit(normal_limit, "normal") is None or explicit_limit(recovery_limit, "recovery") is None:
+        print_problem("일반 상한과 복구 상한을 0 이상의 정수로 지정해야 합니다.", "tests/T4/run_t4.py", "init-budget")
+        return 2
+    path = budget_path(work_id)
+    if path.exists():
+        print_problem("예산 원장이 이미 있습니다.", str(path), work_id)
+        return 1
+    try:
+        historical = historical_http_record()
+        save_budget(path, build_budget(work_id, int(normal_limit), int(recovery_limit), historical))
+    except (OSError, json.JSONDecodeError, KeyError, RuntimeError) as exc:
+        print_problem(str(exc), f"tests/T4/runs/{A03_RUN_ID}/run.json", "init-budget")
+        return 1
+    print(f"budget {rel(path)} normal {normal_limit} recovery {recovery_limit} historical excluded", flush=True)
+    return 0
+
+
+def command_link_donors(run_dir: Path) -> int:
+    if run_dir.name in PROTECTED_RUN_IDS:
+        print_problem("기존 donor run은 수정하지 않습니다.", rel(run_dir), "link-donors")
+        return 1
+    prepared = prepare_run(run_dir)
+    if prepared is None:
+        return 1
+    _manifest, documents, run = prepared
+    refs = [
+        (candidate["candidate_id"], batch["batch_index"])
+        for document in documents
+        for candidate in document["candidates"]
+        for batch in candidate["batches"]
+        if batch["status"] == "pending"
+    ]
+    for candidate_id, batch_index in refs:
+        document, candidate, batch = find_batch(documents, candidate_id, batch_index)
+        outcome = execute_batch(run_dir, run, document, candidate, batch, InferClient(), allow_http=False)
+        save_documents(run_dir, documents)
+        refresh_counts(run, documents)
+        write_json(run_dir / "run.json", run)
+        print(f"{candidate_id}#b{batch_index} {outcome} reused={run['counts']['reused']}", flush=True)
+        if outcome == "failed":
+            return 1
+    run["usage"] = sum_usage(run_dir)
+    run["run_status"] = rollup_status([batch["status"] for document in documents for candidate in document["candidates"] for batch in candidate["batches"]])
+    if run.get("quality_status") == "accepted":
+        run["quality_status"] = "pending_review"
+    save_documents(run_dir, documents)
+    write_json(run_dir / "run.json", run)
+    _write_views(run_dir, documents, run)
+    write_json(run_dir / "run.json", run)
+    print(f"link-donors reused {run['counts']['reused']} pending {run['counts']['pending']} http {run['counts']['http_attempts']}", flush=True)
+    return 0
+
+
+def command_review_pack(run_dir: Path, output: Path) -> int:
+    resolved = output.resolve()
+    for run_id in PROTECTED_RUN_IDS:
+        if resolved.is_relative_to((RUNS_ROOT / run_id).resolve()):
+            print_problem("검수 추출은 기존 run 안에 쓰지 않습니다.", str(output), "review-pack")
+            return 1
+    manifest = read_json(run_dir / "manifest.json")
+    documents = load_documents(run_dir)
+    retained_path = ROOT / REVIEW_RETAINED_PATH
+    route_path = ROOT / ROUTE_REVIEW_PATH
+    pack = review.build_contrast_pack(
+        documents,
+        _optional_json(retained_path),
+        _optional_json(route_path),
+        retained_sha256=sha256_file(retained_path) if retained_path.is_file() else None,
+        route_sha256=sha256_file(route_path) if route_path.is_file() else None,
+    )
+    pack["run_id"] = manifest.get("run_id") or run_dir.name
+    pack["manifest_sha256"] = sha256_file(run_dir / "manifest.json")
+    write_json(output, pack)
+    print(f"review-pack {rel(output)} retained {pack['review_retained_uncertain_count']}", flush=True)
+    return 0
+
+
+def _call_digest(folder: Path) -> tuple[int, str]:
+    lines = [f"{rel(path)} {sha256_file(path)}" for path in sorted(folder.glob("*.json"))]
+    return len(lines), sha256_text("\n".join(lines) + "\n")
+
+
+def command_audit_donors() -> int:
+    errors: list[str] = []
+    manifest_path = RUNS_ROOT / A03_RUN_ID / "manifest.json"
+    manifest = read_json(manifest_path)
+    identity = identity_problems(manifest)
+    if not identity:
+        errors.append("A03 identity가 코드 변경 후에도 통과합니다.")
+    if any(name in problem for problem in identity for name in ("prompts.py", "extract.py")):
+        errors.append("prompts 또는 extract hash가 바뀌었습니다.")
+    if not any("run_t4.py" in problem for problem in identity) or not any("review.py" in problem for problem in identity):
+        errors.append("제어 코드 hash가 A03 manifest와 달라야 합니다.")
+    snapshot = read_json(ROOT / A03_SOURCE_DIR / "snapshot.json")
+    if snapshot.get("manifest_sha256") != sha256_file(manifest_path) or snapshot.get("manifest_sha256") != A03_MANIFEST_SHA256:
+        errors.append("A03 manifest hash가 스냅샷과 다릅니다.")
+    for item in manifest.get("code") or []:
+        copied = ROOT / A03_SOURCE_DIR / Path(str(item["path"])).name
+        if not copied.is_file() or sha256_file(copied) != item.get("sha256"):
+            errors.append(f"스냅샷 소스가 manifest와 다릅니다: {item.get('path')}")
+    for record in snapshot.get("protected_records") or []:
+        if sha256_file(ROOT / record["path"]) != record["sha256"]:
+            errors.append(f"보호 기록이 바뀌었습니다: {record['path']}")
+    count, digest = _call_digest(RUNS_ROOT / A03_RUN_ID / "calls")
+    recorded = snapshot.get("a03_calls") or {}
+    if count != recorded.get("count") or digest != recorded.get("digest_sha256"):
+        errors.append("A03 call 목록 digest가 스냅샷과 다릅니다.")
+    documents = load_documents(RUNS_ROOT / A03_RUN_ID)
+    reusable = a03_new = a02_origin = pending = 0
+    mismatches: list[str] = []
+    keys: dict[str, list[str]] = {}
+    checked = 0
+    for document in documents:
+        for candidate in document["candidates"]:
+            for batch in candidate["batches"]:
+                if batch["status"] == "pending":
+                    pending += 1
+                    continue
+                if batch["status"] != "ok":
+                    mismatches.append(f"{batch['batch_id']} status {batch['status']}")
+                    continue
+                built = build_request(candidate, batch, decisions_so_far(candidate))
+                key = reuse_key(document, candidate, batch, built)
+                call_ref = batch.get("call_ref")
+                if not isinstance(call_ref, str):
+                    mismatches.append(f"{batch['batch_id']} call 없음")
+                    continue
+                path = ROOT / call_ref
+                try:
+                    record = read_json(path)
+                except (OSError, json.JSONDecodeError):
+                    mismatches.append(f"{batch['batch_id']} call 읽기 실패")
+                    continue
+                reason = _validated_reuse(record, path, key, built, batch)
+                if reason:
+                    mismatches.append(f"{batch['batch_id']} {reason}")
+                    continue
+                lineage = donor_lineage(path, record)
+                if not lineage:
+                    mismatches.append(f"{batch['batch_id']} lineage 없음")
+                    continue
+                origin = lineage[-1]["run_id"]
+                if batch.get("reused_from"):
+                    if origin != A02_RUN_ID or lineage[0].get("role") != "a03_batch":
+                        mismatches.append(f"{batch['batch_id']} A02 연결이 아닙니다.")
+                    else:
+                        a02_origin += 1
+                elif origin != A03_RUN_ID:
+                    mismatches.append(f"{batch['batch_id']} A03 신규 call이 아닙니다.")
+                else:
+                    a03_new += 1
+                reusable += 1
+                keys.setdefault(key, []).append(str(path.resolve()))
+                checked += 1
+                if checked % 25 == 0:
+                    print(f"audit donors {checked}", flush=True)
+    conflicts = [key for key, paths in keys.items() if len(set(paths)) > 1]
+    a03_keys = set(_reuse_index(RUNS_ROOT / A03_RUN_ID)["key"])
+    a02_keys = set(_reuse_index(RUNS_ROOT / A02_RUN_ID)["key"])
+    cross = sorted(a03_keys & a02_keys)
+    if reusable != 256 or a03_new != 253 or a02_origin != 3 or pending != 423:
+        errors.append(f"재사용 집계 reusable {reusable} a03 {a03_new} a02 {a02_origin} pending {pending}")
+    if conflicts or cross:
+        errors.append(f"reuse_key 충돌 {len(conflicts)} 교차 {len(cross)}")
+    errors.extend(mismatches)
+    result = {
+        "reusable": reusable,
+        "a03_new_calls": a03_new,
+        "a02_origin_calls": a02_origin,
+        "pending": pending,
+        "key_conflicts": len(conflicts),
+        "cross_donor_keys": len(cross),
+        "mismatches": len(mismatches),
+        "identity_problems": identity,
+        "errors": errors,
+    }
+    print(dump_text(result), flush=True)
+    return 1 if errors else 0
+
+
+def command_check() -> int:
+    failures: list[str] = []
+
+    def expect(condition: bool, label: str) -> None:
+        if not condition:
+            failures.append(label)
+
+    expect(CONFIG_ID == "A03" and prompts.PROMPT_ID == "P1" and IMAGES_PER_REQUEST == 4 and CONTEXT_IMAGES == 0, "A03 P1 no context B=4")
+    expect(planned_request_count(0) == 0 and planned_request_count(1) == 1 and planned_request_count(IMAGES_PER_REQUEST) == 1, "small batches")
+    expect(planned_request_count(IMAGES_PER_REQUEST + 1) == 2 and planned_request_count(7) == 2, "larger batches")
+    expect(expected_vlm_size(1920, 1080) == (1280, 720), "vlm size")
+    expect(_optional_int(0) == 0 and _optional_int(False) is None, "zero stream index")
+    ids = [f"v:s0:pts{index}" for index in range(7)]
+    batches = build_batches(ids)
+    expect(batches[0]["context_ids"] == [] and batches[0]["target_ids"] == ids[:4], "first batch")
+    expect(batches[1]["context_ids"] == [] and batches[1]["target_ids"] == ids[4:], "no second context")
+    expect(len(batches) == planned_request_count(len(ids)), "formula matches batches")
+    expect(all(len(batch["context_ids"]) + len(batch["target_ids"]) <= IMAGES_PER_REQUEST for batch in batches), "image cap")
+    short = build_batches(ids[:5])
+    expect(short[1]["context_ids"] == [] and short[1]["target_ids"] == [ids[4]], "short no-context tail")
+    expect(not batch_shape_problems("v", ids, batches), "shape ok")
+    for n in (0, 1, 3, 4, 5, 7, 8, 9, 23, 34):
+        sample_ids = [f"f{i}" for i in range(n)]
+        grouped = build_batches(sample_ids)
+        expect(all(not b["context_ids"] for b in grouped), "zero context")
+        expect([i for b in grouped for i in b["target_ids"]] == sample_ids, "target coverage once")
+        expect(len(grouped) == math.ceil(n / 4), "no-context request count")
+    injected = [{"context_ids": [], "target_ids": ids[:4]},
+                {"context_ids": [ids[3]], "target_ids": ids[4:]}]
+    expect(bool(batch_shape_problems("v", ids, injected)), "context injection rejected")
+
+    oversized = [{"batch_id": "v#b0", "context_ids": [], "target_ids": ids[:6]}]
+    expect(bool(batch_shape_problems("v", ids, oversized)), "oversized batch rejected")
+    expect(build_batches([f"other:s0:pts{index}" for index in range(3)])[0]["context_ids"] == [], "candidate context isolated")
+    expect(frame_id_of("H2", 0, 10) == "H2:s0:pts10", "frame id")
+    expect(json_time_base((1, 16000)) == {"numerator": 1, "denominator": 16000} and json_time_base(None) is None, "time base json")
+    expect('"numerator": 1' in dump_text({"time_base_in": json_time_base((1, 16000))}), "time base dump")
+    expect(video_seconds_of(SMOKE_PTS, 1, 16000) == Decimal("1247.913000000"), "anchor seconds")
+    expect(video_seconds_of(SMOKE_PTS, 1, 16000) + Decimal(5) != video_seconds_of(SMOKE_PTS, 1, 16000), "offset not included")
+    frames = build_frames(_synthetic_candidate())
+    expect(len(frames) == 1 and frames[0]["sample_indices"] == [0, 1], "same pts once")
+    expect(frames[0]["video_seconds"] != frames[0]["requests"][0]["requested_video_seconds"], "request time separate")
+    targets = ["a", "b"]
+    good, error = validate_decisions({"frames": [
+        {"frame_id": "a", "decision": "keep", "reason": "표가 보인다.", "duplicate_of": None},
+        {"frame_id": "b", "decision": "keep", "reason": "다시 보이는 표도 유용하다.", "duplicate_of": None},
+    ]}, targets, [])
+    expect(error is None and good is not None, "useful repeated frames retained")
+    for decision in ("keep", "drop", "uncertain"):
+        for reference in ("a", "b", "context", 0, False, [], {}):
+            payload = {"frames": [
+                {"frame_id": "a", "decision": decision, "reason": "판정", "duplicate_of": reference},
+                {"frame_id": "b", "decision": "keep", "reason": "표", "duplicate_of": None},
+            ]}
+            _bad, error = validate_decisions(payload, targets, ["context"])
+            expect(error is not None, "no semantic replacement even by keep or context")
+    for decision in ("drop", "uncertain"):
+        _good, error = validate_decisions({"frames": [
+            {"frame_id": "a", "decision": decision, "reason": "해당 화면의 분석 가치 판단", "duplicate_of": None},
+            {"frame_id": "b", "decision": "keep", "reason": "표", "duplicate_of": None},
+        ]}, targets, [])
+        expect(error is None, "independent drop or uncertain")
+    text = prompts.render_prompt("v:u0:c0", "[]", '["a"]', '["context"]')
+    expect("{candidate_id}" not in text and "프레임별 분석 가치 판정" in text, "P1 rendered")
+    expect("참조 가능한 기존 keep context:" not in text, "P1 has no eligible replacement list")
+    expect(prompt_sha() == sha256_text(prompts.P1) and prompts.P0 != prompts.P1, "active P1 identity")
+    _bad, error = parse_strict_object('{"frames": [], "frames": []}')
+    expect(error is not None, "duplicate key")
+    _bad, error = parse_strict_object('{"frames": NaN}')
+    expect(error is not None, "nan")
+    _bad, error = parse_strict_object('```json\n{"frames": []}\n```')
+    expect(error is not None, "fence")
+    transport = {
+        "http_status": 200,
+        "response_body": json.dumps({
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": "", "reasoning": json.dumps({"frames": []})},
+            }],
+        }),
+        "error": None,
+    }
+    interpreted = interpret_transport(transport, [], [])
+    expect(not interpreted["ok"], "reasoning is not content")
+    expect(rollup_status(["ok", "pending"]) == "partial" and rollup_status(["failed", "pending"]) == "failed", "rollup")
+    expect(rollup_status(["pending", "pending"]) == "pending" and rollup_status(["ok", "ok"]) == "ok", "rollup ends")
+    expect(rollup_status(["unknown"]) == "blocked" and rollup_status(["ok", "unknown"]) == "partial", "unknown rollup")
+    expect(rollup_status(["unknown", "pending"]) == "blocked", "unknown is not pending")
+    sample_run = "run123"
+    sample_manifest = "a" * 64
+    blocked = approvals_of(
+        f"approval full true run={sample_run} manifest={sample_manifest}\napproval full false run={sample_run} manifest={sample_manifest}\n",
+        run_id=sample_run, manifest_sha256=sample_manifest,
+    )
+    expect(blocked["interpretable"] and not blocked["full"], "approval true then false")
+    fenced = "```\n" + f"approval full true run={sample_run} manifest={sample_manifest}\n" + "```\n"
+    expect(not approvals_of(fenced, run_id=sample_run, manifest_sha256=sample_manifest)["full"], "fenced approval ignored")
+    other = approvals_of(f"approval pilot true run=other manifest={sample_manifest}\n", run_id=sample_run, manifest_sha256=sample_manifest)
+    expect(other["interpretable"] and not other["pilot"], "other run is not approval")
+    legacy = approvals_of("pilot_approved: true\nfull_resume_approved: true\nnote pilot_approved: true inside\n", run_id=sample_run, manifest_sha256=sample_manifest)
+    expect(legacy["interpretable"] and not legacy["pilot"] and not legacy["full"], "legacy prose is not approval")
+    broken = approvals_of("approval full maybe run=x manifest=short\n", run_id=sample_run, manifest_sha256=sample_manifest)
+    expect(not broken["interpretable"] and not broken["full"], "malformed approval blocks")
+    directive = f"approval full true run={sample_run} manifest={sample_manifest}\n"
+    false_directive = f"approval full false run={sample_run} manifest={sample_manifest}\n"
+    tilde = false_directive + "~~~text\n" + directive + "~~~\n"
+    tilde_result = approvals_of(tilde, run_id=sample_run, manifest_sha256=sample_manifest)
+    expect(tilde_result["interpretable"] and not tilde_result["full"], "tilde fence is not approval")
+    longer = "````\n" + directive + "```\n````\n"
+    expect(not approvals_of(longer, run_id=sample_run, manifest_sha256=sample_manifest)["full"], "longer fence stays closed")
+    indented = "   ```\n" + directive + "   ```\n"
+    expect(not approvals_of(indented, run_id=sample_run, manifest_sha256=sample_manifest)["full"], "indented fence is not approval")
+    quoted = approvals_of("> " + directive, run_id=sample_run, manifest_sha256=sample_manifest)
+    expect(quoted["interpretable"] and not quoted["full"], "quoted approval ignored")
+    missing = approvals_of("", run_id=sample_run, manifest_sha256=sample_manifest)
+    expect(missing["interpretable"] and not missing["pilot"] and not missing["full"], "missing approval")
+    other_manifest = approvals_of(f"approval full true run={sample_run} manifest={'b' * 64}\n", run_id=sample_run, manifest_sha256=sample_manifest)
+    expect(other_manifest["interpretable"] and not other_manifest["full"], "other manifest is not approval")
+    restored = approvals_of(false_directive + directive, run_id=sample_run, manifest_sha256=sample_manifest)
+    expect(restored["interpretable"] and restored["full"], "latest true after false")
+    unclosed = approvals_of("```\n" + directive + "``\n", run_id=sample_run, manifest_sha256=sample_manifest)
+    expect(not unclosed["interpretable"] and not unclosed["full"], "unclosed fence blocks")
+    expect(transport_disposition({"http_status": None, "error": "Connection refused 생성 전", "generation_state": None}) == "unknown", "error text is unknown")
+    expect(transport_disposition({"http_status": None, "error": "connection refused", "generation_state": "not_started"}) == "pre_generation", "explicit pre-generation")
+    expect(transport_disposition({"http_status": 500, "generation_state": "not_started"}) == "http_response", "http status wins")
+    retained = read_json(ROOT / REVIEW_RETAINED_PATH)
+    retained_frame = "iVelddb1qQ4:s0:pts33276243"
+    expect(retained["items"][0]["frame_id"] == retained_frame and retained["items"][0]["original_model_decision"] == "drop", "retained source drop")
+    keep_frame = "iVelddb1qQ4:s0:pts33276200"
+    contrast_document = {"candidates": [{
+        "candidate_id": "iVelddb1qQ4:u17:c0",
+        "selected_confirmed": [keep_frame],
+        "retained_uncertain": [],
+        "frames": [
+            {"frame_id": keep_frame, "pts": 33276200, "decision": "keep", "reason": "판서", "time_base": {"numerator": 1, "denominator": 30000}, "video_seconds": Decimal("1"), "full": {"path": "k.png", "sha256": "k"}, "vlm": {"path": "k.png", "sha256": "k"}, "batch_id": "iVelddb1qQ4:u17:c0#b0"},
+            {"frame_id": retained_frame, "pts": 33276243, "decision": "drop", "reason": "흐림", "time_base": {"numerator": 1, "denominator": 30000}, "video_seconds": Decimal("2"), "full": {"path": "d.png", "sha256": "d"}, "vlm": {"path": "d.png", "sha256": "d"}, "batch_id": "iVelddb1qQ4:u17:c0#b0"},
+        ],
+        "batches": [{"batch_id": "iVelddb1qQ4:u17:c0#b0", "status": "ok", "call_ref": "calls/a.json", "reused_from": "calls/a02.json", "donor_lineage": [{"role": "origin"}], "target_ids": [retained_frame]}],
+    }]}
+    pack = review.build_contrast_pack([contrast_document], retained, {"drop_reviews": [{"frame_id": retained_frame, "review_verdict": "review_retained_uncertain", "reason": "흐림", "model_decision": "drop"}]})
+    expect(pack["review_retained_uncertain_count"] == 1 and pack["model_decision_counts"]["uncertain"] == 0 and pack["model_decision_counts"]["drop"] == 1, "review retention separate")
+    expect(contrast_document["candidates"][0]["frames"][1]["decision"] == "drop" and contrast_document["candidates"][0]["retained_uncertain"] == [], "model drop unchanged")
+    expect(pack["items"][0]["adjacent_keep_ids"] == [keep_frame], "adjacent keep")
+    expect([item["frame_id"] for item in pack["items"][0]["adjacent_keeps"]] == [keep_frame], "previous keep image")
+    expect(pack["review_retained_uncertain"][0]["sources"] == ["review_retained_uncertain", "route_review"], "review sources once")
+    _check_contrast_positions(expect)
+    groups = extract.clusters_for([
+        {"pts": 1, "video_seconds": Decimal(0)},
+        {"pts": 2, "video_seconds": Decimal("0.5")},
+        {"pts": 3, "video_seconds": Decimal("4")},
+    ])
+    expect(len(groups) == 2 and [item["pts"] for item in groups[1]] == [3], "cluster gap")
+    expect("min(1280,iw)" in extract.scale_filter(1920, 1080) and "min(1280,ih)" in extract.scale_filter(720, 1280), "scale filter")
+    with __import__("tempfile").TemporaryDirectory() as temporary:
+        path = Path(temporary) / "sample.json"
+        atomic_write(path, dump_text({"value": Decimal("1.25"), "ok": True}))
+        expect(read_json(path) == {"value": 1.25, "ok": True}, "atomic json")
+        lock_dir = Path(temporary) / "run"
+        lock_dir.mkdir()
+        with run_lock(lock_dir):
+            try:
+                with run_lock(lock_dir):
+                    expect(False, "lock overlap")
+            except RuntimeError:
+                expect(True, "lock overlap")
+        _check_execution(Path(temporary), expect)
+        _check_controls(Path(temporary), expect)
+    if failures:
+        for label in failures:
+            print_problem("합성 검사를 통과하지 못했습니다.", "tests/T4/run_t4.py", label)
+        return 1
+    print("check ok", flush=True)
+    return 0
+
+
+def _synthetic_candidate() -> dict[str, Any]:
+    return {
+        "candidate_id": "vid:u0:c0",
+        "segments": [
+            {"segment_index": 0, "analysis_sample_indices": [0, 1]},
+        ],
+        "requests": [
+            {"request_index": 0, "requested_video_seconds": 1, "kind": "grid"},
+            {"request_index": 1, "requested_video_seconds": 2, "kind": "grid"},
+        ],
+        "samples": [
+            {"sample_index": 0, "pts": 10, "stream_index": 0, "time_base": {"numerator": 1, "denominator": 1}, "request_indices": [0], "video_seconds": 10},
+            {"sample_index": 1, "pts": 10, "stream_index": 0, "time_base": {"numerator": 1, "denominator": 1}, "request_indices": [1], "video_seconds": 10},
+        ],
+    }
+
+
+def _check_execution(root: Path, expect) -> None:
+    run_dir = root / "mini"
+    run_dir.mkdir()
+    png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+    image = root / "tiny.png"
+    image.write_bytes(png)
+    digest = sha256_bytes(png)
+    relative = str(image)
+    frames = []
+    for index in range(12):
+        frames.append({
+            "frame_id": f"vid:s0:pts{index}",
+            "sample_indices": [index],
+            "requests": [{"request_index": index, "requested_video_seconds": Decimal(index), "kind": "grid", "sample_index": index}],
+            "stream_index": 0,
+            "pts": index,
+            "time_base": {"numerator": 1, "denominator": 1},
+            "video_seconds": Decimal(index),
+            "segment_index": 0,
+            "full": {"path": relative, "sha256": digest, "width": 1, "height": 1, "bytes": len(png)},
+            "vlm": {"path": relative, "sha256": digest, "width": 1, "height": 1, "bytes": len(png)},
+            "decision": None,
+            "reason": None,
+            "duplicate_of": None,
+            "selection": None,
+            "execution_state": "pending",
+            "batch_id": None,
+        })
+    batches = []
+    for index, built in enumerate(build_batches([frame["frame_id"] for frame in frames])):
+        batch_id = f"vid:u0:c0#b{index}"
+        for frame_id in built["target_ids"]:
+            next(frame for frame in frames if frame["frame_id"] == frame_id)["batch_id"] = batch_id
+        batches.append({
+            "batch_id": batch_id,
+            "batch_index": index,
+            "context_ids": built["context_ids"],
+            "target_ids": built["target_ids"],
+            "eligible_context_ids": [],
+            "status": "pending",
+            "call_ref": None,
+            "reused_from": None,
+            "http_attempts": 0,
+            "decisions": None,
+            "error": None,
+            "request_bytes": None,
+            "text_chars": None,
+            "target_image_bytes": None,
+            "context_image_bytes": None,
+        })
+    candidate = {
+        "candidate_id": "vid:u0:c0",
+        "source_t3_sha256": "abc",
+        "source_candidate": {"candidate_source": "thinking_on", "model_inference_success": True},
+        "sentences": [{"sentence_index": 0, "text": "원문", "audio_start": Decimal("0.1"), "audio_end": Decimal("0.2")}],
+        "frames": frames,
+        "batches": batches,
+        "segments": [{"segment_index": 0, "video_start": Decimal(0), "video_end": Decimal(12), "analysis_sample_indices": list(range(12)), "frame_ids": [frame["frame_id"] for frame in frames], "selected_confirmed": [], "retained_uncertain": [], "not_selected": [], "pending": [], "failed": []}],
+        "selected_confirmed": [],
+        "retained_uncertain": [],
+        "not_selected": [],
+        "status": "pending",
+        "problems": [],
+        "warnings": [],
+        "validation": {"ok": True, "problems": []},
+        "text_ref": {},
+        "requested_range": {},
+        "effective_range": {},
+    }
+    document = {
+        "video_id": "vid",
+        "media": {"path": "data/vid/source/video.mp4", "recorded_sha256": "hash", "size": 1, "mtime_ns": 1, "bytes_rehashed": False, "offset_reapplied": False},
+        "source_url": "https://example.invalid/vid",
+        "candidates": [candidate],
+        "status": "pending",
+        "problems": [],
+        "warnings": [],
+        "validation": {"ok": True, "problems": []},
+        "schema_version": SCHEMA_VERSION,
+        "config_id": CONFIG_ID,
+        "logic_version": LOGIC_VERSION,
+        "prompt_id": prompts.PROMPT_ID,
+        "prompt_sha256": prompt_sha(),
+        "path_reference": "repository_root",
+    }
+    run = empty_run("mini")
+    structure = structural_validation([document])
+    expect(structure["ok"], "synthetic structure " + ",".join(structure["problems"]))
+    ledger = _test_ledger(root / "mini-budget", "mini-work", 5, 2)
+    client = _FakeClient(fail_on=2)
+    outcome = execute_selected(run_dir, [document], run, [("vid:u0:c0", 0), ("vid:u0:c0", 1), ("vid:u0:c0", 2)], client, ledger)
+    expect(run["quality_status"] == "pending_review", "http success is not acceptance")
+    expect(outcome == "failed" and client.posts == 2 and candidate["batches"][2]["status"] == "pending", "stop on first failure")
+    expect(candidate["batches"][0]["status"] == "ok" and candidate["batches"][1]["status"] == "failed", "saved failure")
+    posts_before = client.posts
+    again = execute_batch(run_dir, run, document, candidate, candidate["batches"][0], client, allow_http=True)
+    expect(again == "skipped" and client.posts == posts_before, "ok batch not recalled")
+    candidate["batches"][0]["status"] = "pending"
+    http_before = run["counts"]["http_attempts"]
+    reused = execute_batch(run_dir, run, document, candidate, candidate["batches"][0], client, allow_http=True)
+    expect(reused == "ok" and client.posts == posts_before and not candidate["batches"][0]["reused_from"], "same-run call is recovered without http")
+    expect(run["counts"]["http_attempts"] == http_before, "same-run recovery does not count the http twice")
+    resume_refs = mode_refs([document], "resume")
+    expect(resume_refs == [("vid:u0:c0", 2)] and candidate["batches"][1]["status"] == "failed", "resume pending only")
+
+
+def _test_ledger(folder: Path, work_id: str, normal: int, recovery: int) -> Path:
+    path = folder / "budget.json"
+    save_budget(path, build_budget(work_id, normal, recovery, {
+        "run_id": "historical",
+        "http_attempts": A03_HISTORICAL_HTTP_ATTEMPTS,
+        "counted_in_this_work": False,
+    }))
+    return path
+
+
+def _control_document(relative: str, digest: str, count: int) -> dict[str, Any]:
+    frames = []
+    for index in range(count):
+        frames.append({
+            "frame_id": f"vid:s0:pts{index}",
+            "sample_indices": [index],
+            "requests": [{"request_index": index, "requested_video_seconds": Decimal(index), "kind": "grid", "sample_index": index}],
+            "stream_index": 0,
+            "pts": index,
+            "time_base": {"numerator": 1, "denominator": 1},
+            "video_seconds": Decimal(index),
+            "segment_index": 0,
+            "full": {"path": relative, "sha256": digest, "width": 1, "height": 1, "bytes": 1},
+            "vlm": {"path": relative, "sha256": digest, "width": 1, "height": 1, "bytes": 1},
+            "decision": None,
+            "reason": None,
+            "duplicate_of": None,
+            "selection": None,
+            "execution_state": "pending",
+            "batch_id": None,
+        })
+    batches = []
+    for index, built in enumerate(build_batches([frame["frame_id"] for frame in frames])):
+        batch_id = f"vid:u9:c0#b{index}"
+        for frame_id in built["target_ids"]:
+            next(frame for frame in frames if frame["frame_id"] == frame_id)["batch_id"] = batch_id
+        batches.append({
+            "batch_id": batch_id, "batch_index": index, "context_ids": [], "target_ids": built["target_ids"],
+            "eligible_context_ids": [], "status": "pending", "call_ref": None, "reused_from": None,
+            "http_attempts": 0, "decisions": None, "error": None, "request_bytes": None, "text_chars": None,
+            "target_image_bytes": None, "context_image_bytes": None,
+        })
+    candidate = {
+        "candidate_id": "vid:u9:c0", "source_t3_sha256": "abc",
+        "source_candidate": {"candidate_source": "thinking_on", "model_inference_success": True},
+        "sentences": [{"sentence_index": 0, "text": "원문", "audio_start": Decimal("0.1"), "audio_end": Decimal("0.2")}],
+        "frames": frames, "batches": batches,
+        "segments": [{"segment_index": 0, "video_start": Decimal(0), "video_end": Decimal(count), "analysis_sample_indices": list(range(count)), "frame_ids": [frame["frame_id"] for frame in frames], "selected_confirmed": [], "retained_uncertain": [], "not_selected": [], "pending": [], "failed": []}],
+        "selected_confirmed": [], "retained_uncertain": [], "not_selected": [], "status": "pending",
+        "problems": [], "warnings": [], "validation": {"ok": True, "problems": []},
+    }
+    return {
+        "video_id": "vid",
+        "media": {"path": "data/vid/source/video.mp4", "recorded_sha256": "hash", "size": 1, "mtime_ns": 1},
+        "candidates": [candidate],
+    }
+
+
+class _ScriptedClient:
+    def __init__(self, response: dict[str, Any]) -> None:
+        self.response = response
+        self.posts = 0
+
+    def post(self, wire: bytes) -> dict[str, Any]:
+        del wire
+        self.posts += 1
+        return self.response
+
+
+def _check_controls(root: Path, expect) -> None:
+    image = root / "tiny.png"
+    digest = sha256_bytes(image.read_bytes())
+    shared = _control_document(str(image), digest, 8)
+    run_dir = root / "shared"
+    run_dir.mkdir()
+    ledger = _test_ledger(root / "shared-budget", "shared", 1, 2)
+    expect(budget_counts(load_budget(ledger))["normal"] == 0, "historical http excluded")
+    client = _FakeClient(fail_on=99)
+    run_a = empty_run("runA")
+    run_b = empty_run("runB")
+    first = execute_batch(run_dir, run_a, shared, shared["candidates"][0], shared["candidates"][0]["batches"][0], client, allow_http=True, ledger_path=ledger)
+    second = execute_batch(run_dir, run_b, shared, shared["candidates"][0], shared["candidates"][0]["batches"][1], client, allow_http=True, ledger_path=ledger)
+    expect(first == "ok" and second == "budget_blocked" and client.posts == 1, "shared budget blocks second run")
+    expect(budget_counts(load_budget(ledger))["normal"] == 1, "budget survives across runs")
+    expect(run_a["quality_status"] == "pending_review", "shared success is not acceptance")
+
+    crash_doc = _control_document(str(image), digest, 4)
+    crash_dir = root / "crash"
+    crash_dir.mkdir()
+    crash_ledger = _test_ledger(root / "crash-budget", "crash", 3, 2)
+    crash_batch = crash_doc["candidates"][0]["batches"][0]
+    built = build_request(crash_doc["candidates"][0], crash_batch, {})
+    reserve_normal(
+        crash_ledger, run_id="crash", batch_id=crash_batch["batch_id"],
+        reuse_key=reuse_key(crash_doc, crash_doc["candidates"][0], crash_batch, built),
+        request_sha256=sha256_bytes(built["wire"]),
+    )
+    crash_client = _FakeClient(fail_on=99)
+    crash_run = empty_run("crash")
+    crashed = execute_batch(crash_dir, crash_run, crash_doc, crash_doc["candidates"][0], crash_batch, crash_client, allow_http=True, ledger_path=crash_ledger)
+    again = execute_batch(crash_dir, crash_run, crash_doc, crash_doc["candidates"][0], crash_batch, crash_client, allow_http=True, ledger_path=crash_ledger)
+    expect(crashed == "unknown" and again == "skipped_unknown" and crash_client.posts == 0, "unknown reservation is not resent")
+    expect(budget_counts(load_budget(crash_ledger))["normal"] == 1, "reservation stays counted")
+
+    reuse_doc = _control_document(str(image), digest, 4)
+    reuse_dir = root / "reuse"
+    reuse_dir.mkdir()
+    reuse_ledger = _test_ledger(root / "reuse-budget", "reuse", 3, 2)
+    reuse_client = _FakeClient(fail_on=99)
+    reuse_run = empty_run("reuse")
+    reuse_batch = reuse_doc["candidates"][0]["batches"][0]
+    made = execute_batch(reuse_dir, reuse_run, reuse_doc, reuse_doc["candidates"][0], reuse_batch, reuse_client, allow_http=True, ledger_path=reuse_ledger)
+    donor = root / "donor"
+    donor.mkdir()
+    shutil.move(str(reuse_dir / "calls"), str(donor / "calls"))
+    _REUSE_INDEX.clear()
+    attempts = len(load_budget(reuse_ledger)["attempts"])
+    posts = reuse_client.posts
+    reuse_batch["status"] = "pending"
+    reuse_batch["reused_from"] = None
+    reuse_batch["decisions"] = None
+    reused = execute_batch(reuse_dir, reuse_run, reuse_doc, reuse_doc["candidates"][0], reuse_batch, reuse_client, allow_http=True, ledger_path=reuse_ledger, donor_dirs=[donor])
+    expect(made == "ok" and reused == "reused" and reuse_client.posts == posts, "donor reuse sends no http")
+    expect(len(load_budget(reuse_ledger)["attempts"]) == attempts and sum_usage(reuse_dir) is None, "reused usage is not new cost")
+
+    def reject(name: str, mutate) -> None:
+        _REUSE_INDEX.clear()
+        folder = root / name
+        folder.mkdir()
+        shutil.copytree(donor / "calls", folder / "calls")
+        record_path = next((folder / "calls").glob("*.json"))
+        record = read_json(record_path)
+        if isinstance(record.get("elapsed_seconds"), float):
+            record["elapsed_seconds"] = Decimal(str(record["elapsed_seconds"]))
+        mutate(record)
+        write_json(record_path, record)
+        _REUSE_INDEX.clear()
+        doc = _control_document(str(image), digest, 4)
+        batch = doc["candidates"][0]["batches"][0]
+        local = _FakeClient(fail_on=99)
+        run_path = root / f"{name}-run"
+        run_path.mkdir()
+        outcome = execute_batch(run_path, empty_run(name), doc, doc["candidates"][0], batch, local, allow_http=True, ledger_path=reuse_ledger, donor_dirs=[folder])
+        expect(outcome == "failed" and local.posts == 0, name)
+
+    reject("stored-body", lambda record: record["request_body"].__setitem__("model", "altered-body"))
+    reject("body-mismatch", lambda record: record.__setitem__("request_sha256", "0" * 64))
+    reject("image-mismatch", lambda record: record["transmitted_images"].__setitem__(0, {**record["transmitted_images"][0], "sha256": "b" * 64}))
+    reject("response-mismatch", lambda record: record.__setitem__("response_body", "{}") or record.__setitem__("response_sha256", sha256_text("{}")))
+
+    timeout_doc = _control_document(str(image), digest, 4)
+    timeout_dir = root / "timeout"
+    timeout_dir.mkdir()
+    timeout_ledger = _test_ledger(root / "timeout-budget", "timeout", 3, 2)
+    timeout_client = _ScriptedClient({"http_status": None, "response_body": None, "elapsed_seconds": Decimal("0.01"), "error": "Connection refused 생성 전", "generation_state": None})
+    timeout_batch = timeout_doc["candidates"][0]["batches"][0]
+    timeout_run = empty_run("timeout")
+    timed = execute_batch(timeout_dir, timeout_run, timeout_doc, timeout_doc["candidates"][0], timeout_batch, timeout_client, allow_http=True, ledger_path=timeout_ledger)
+    repeated = execute_batch(timeout_dir, timeout_run, timeout_doc, timeout_doc["candidates"][0], timeout_batch, timeout_client, allow_http=True, ledger_path=timeout_ledger)
+    expect(timed == "unknown" and repeated == "skipped_unknown" and timeout_client.posts == 1, "timeout is not resent")
+
+    pre_doc = _control_document(str(image), digest, 4)
+    pre_dir = root / "pre"
+    pre_dir.mkdir()
+    pre_ledger = _test_ledger(root / "pre-budget", "pre", 5, 2)
+    pre_client = _ScriptedClient({"http_status": None, "response_body": None, "elapsed_seconds": Decimal("0.01"), "error": "connection refused", "generation_state": "not_started"})
+    pre_batch = pre_doc["candidates"][0]["batches"][0]
+    pre_run = empty_run("pre")
+    first_pre = execute_batch(pre_dir, pre_run, pre_doc, pre_doc["candidates"][0], pre_batch, pre_client, allow_http=True, ledger_path=pre_ledger)
+    pre_batch["error"] = None
+    second_pre = execute_batch(pre_dir, pre_run, pre_doc, pre_doc["candidates"][0], pre_batch, pre_client, allow_http=True, ledger_path=pre_ledger)
+    counted = budget_counts(load_budget(pre_ledger))
+    pre_batch["error"] = None
+    third_pre = execute_batch(pre_dir, pre_run, pre_doc, pre_doc["candidates"][0], pre_batch, pre_client, allow_http=True, ledger_path=pre_ledger)
+    fourth_pre = execute_batch(pre_dir, pre_run, pre_doc, pre_doc["candidates"][0], pre_batch, pre_client, allow_http=True, ledger_path=pre_ledger)
+    expect(first_pre == "pre_generation" and second_pre == "pre_generation" and counted["normal"] == 0 and counted["recovery"] == 2, "recovery stays separate")
+    expect(third_pre == "budget_blocked" and fourth_pre == "budget_blocked" and pre_client.posts == 2, "recovery cap stops resend")
+    expect(budget_counts(load_budget(pre_ledger))["recovery"] == 2 and budget_counts(load_budget(pre_ledger))["normal"] == 0, "recovery does not exceed its limit")
+    bound_ledger = _test_ledger(root / "bound-budget", "bound", 1, 2)
+    classes = []
+    for index in range(3):
+        reserved = reserve_normal(bound_ledger, run_id=f"r{index}", batch_id=f"b{index}", reuse_key=f"k{index}", request_sha256="a" * 64)
+        if reserved["result"] == "reserved":
+            classes.append(reclassify_pre_generation(bound_ledger, str(reserved["attempt_id"])))
+    bound_counts = budget_counts(load_budget(bound_ledger))
+    fourth = reserve_normal(bound_ledger, run_id="r3", batch_id="b3", reuse_key="k3", request_sha256="b" * 64)
+    expect(classes == ["retryable", "retryable", "exhausted"], "pre-generation classification order")
+    expect(bound_counts["recovery"] == 2 and bound_counts["normal"] == 1 and fourth["result"] != "reserved", "normal 1 and recovery 2 block a fourth reservation")
+    _check_storage_boundaries(root, image, digest, expect)
+
+
+def _check_contrast_positions(expect) -> None:
+    def frame(frame_id: str, pts: int, decision: str) -> dict[str, Any]:
+        image = {"path": f"{frame_id}.png", "sha256": "ab", "width": 1, "height": 1, "bytes": 1}
+        return {
+            "frame_id": frame_id,
+            "pts": pts,
+            "decision": decision,
+            "reason": decision,
+            "time_base": {"numerator": 1, "denominator": 1},
+            "video_seconds": Decimal(pts),
+            "full": dict(image),
+            "vlm": dict(image),
+            "batch_id": f"{frame_id.split(':', 1)[0]}#b0",
+        }
+
+    ordered = [
+        frame("c:s0:pts1", 1, "drop"),
+        frame("c:s0:pts2", 2, "keep"),
+        frame("c:s0:pts3", 3, "drop"),
+        frame("c:s0:pts4", 4, "keep"),
+        frame("c:s0:pts5", 5, "drop"),
+        frame("c:s0:pts6", 6, "uncertain"),
+    ]
+    lonely = [frame("n:s0:pts1", 1, "drop"), frame("n:s0:pts2", 2, "uncertain")]
+    document = {"candidates": [
+        {"candidate_id": "c", "frames": ordered, "batches": [{"batch_id": "c#b0", "status": "ok", "call_ref": "calls/a.json", "reused_from": None}]},
+        {"candidate_id": "n", "frames": lonely, "batches": [{"batch_id": "n#b0", "status": "ok", "call_ref": None, "reused_from": None}]},
+    ]}
+    retained = {"items": [{"frame_id": "c:s0:pts1", "review_decision": "retain_uncertain", "reason": "흐림", "original_model_decision": "drop"}]}
+    route = {"drop_reviews": [{"frame_id": "c:s0:pts1", "review_verdict": "review_retained_uncertain", "reason": "흐림", "model_decision": "drop"}]}
+    pack = review.build_contrast_pack([document], retained, route)
+    by_id = {item["frame_id"]: item for item in pack["items"]}
+
+    def images(item: dict[str, Any]) -> list[str]:
+        return [entry["frame_id"] for entry in item["adjacent_keeps"]]
+
+    first = by_id["c:s0:pts1"]
+    middle = by_id["c:s0:pts3"]
+    last = by_id["c:s0:pts5"]
+    none = by_id["n:s0:pts1"]
+    expect(first["adjacent_keep_ids"] == ["c:s0:pts2"] and images(first) == ["c:s0:pts2"], "first drop includes next keep image")
+    expect(middle["adjacent_keep_ids"] == ["c:s0:pts2", "c:s0:pts4"] and images(middle) == ["c:s0:pts2", "c:s0:pts4"], "middle drop includes both keep images")
+    expect(last["adjacent_keep_ids"] == ["c:s0:pts4"] and images(last) == ["c:s0:pts4"], "last drop includes previous keep image")
+    expect(none["adjacent_keep_ids"] == [] and images(none) == [], "drop without keep has no keep image")
+    expect(pack["model_decision_counts"]["uncertain"] == 2 and "c:s0:pts1" not in pack["model_uncertain_ids"], "review retention is not model uncertain")
+    expect(pack["review_retained_uncertain_count"] == 1 and pack["review_retained_uncertain"][0]["sources"] == ["review_retained_uncertain", "route_review"], "review retention is not duplicated")
+    expect(pack["review_retained_uncertain"][0]["model_decision"] == "drop" and ordered[0]["decision"] == "drop", "contrast pack leaves the model drop")
+
+
+def _recovered_counts(run_dir: Path, ledger: Path, image: Path, digest: str, expect, label: str) -> None:
+    _REUSE_INDEX.clear()
+    restarted = _control_document(str(image), digest, 4)
+    client = _FakeClient(fail_on=99)
+    run = empty_run(label)
+    candidate = restarted["candidates"][0]
+    outcome = execute_batch(
+        run_dir, run, restarted, candidate, candidate["batches"][0], client,
+        allow_http=True, ledger_path=ledger, donor_dirs=[],
+    )
+    refresh_counts(run, [restarted])
+    usage = sum_usage(run_dir)
+    expect(client.posts == 0 and outcome == "ok", label + " does not resend")
+    expect(run["counts"]["http_attempts"] == 1 and run["counts"]["new"] == 1 and run["counts"]["reused"] == 0, label + " counts the saved call")
+    expect(budget_counts(load_budget(ledger))["normal"] == 1, label + " keeps the normal debit")
+    expect(usage == {"prompt_tokens": 3, "completion_tokens": 4}, label + " usage matches the call file")
+
+
+def _check_storage_boundaries(root: Path, image: Path, digest: str, expect) -> None:
+    global store_call, update_attempt, save_documents
+    saved_store = store_call
+    saved_update = update_attempt
+    saved_save = save_documents
+    try:
+        run_dir = root / "kill-file"
+        run_dir.mkdir()
+        ledger = _test_ledger(root / "kill-file-budget", "kill-file", 2, 0)
+        document = _control_document(str(image), digest, 4)
+        client = _FakeClient(fail_on=99)
+
+        def crash_store(*_args: Any, **_kwargs: Any) -> str:
+            raise RuntimeError("before call file persistence")
+
+        store_call = crash_store
+        try:
+            execute_batch(
+                run_dir, empty_run("kill-file"), document, document["candidates"][0], document["candidates"][0]["batches"][0], client,
+                allow_http=True, ledger_path=ledger, donor_dirs=[],
+            )
+            stopped = False
+        except RuntimeError:
+            stopped = True
+        finally:
+            store_call = saved_store
+        saved_calls = len(list((run_dir / "calls").glob("*.json"))) if (run_dir / "calls").exists() else 0
+        states = [item["state"] for item in load_budget(ledger)["attempts"]]
+        expect(stopped and states == ["unknown"] and saved_calls == 0 and client.posts == 1, "crash before call file keeps unknown")
+        _REUSE_INDEX.clear()
+        restarted = _control_document(str(image), digest, 4)
+        again = _FakeClient(fail_on=99)
+        outcome = execute_batch(
+            run_dir, empty_run("kill-file"), restarted, restarted["candidates"][0], restarted["candidates"][0]["batches"][0], again,
+            allow_http=True, ledger_path=ledger, donor_dirs=[],
+        )
+        expect(again.posts == 0 and outcome == "unknown", "crash before call file is not resent")
+
+        run_dir = root / "kill-ledger"
+        run_dir.mkdir()
+        ledger = _test_ledger(root / "kill-ledger-budget", "kill-ledger", 2, 0)
+        document = _control_document(str(image), digest, 4)
+        client = _FakeClient(fail_on=99)
+
+        def crash_update(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise RuntimeError("before ledger completion")
+
+        update_attempt = crash_update
+        try:
+            execute_batch(
+                run_dir, empty_run("kill-ledger"), document, document["candidates"][0], document["candidates"][0]["batches"][0], client,
+                allow_http=True, ledger_path=ledger, donor_dirs=[],
+            )
+            stopped = False
+        except RuntimeError:
+            stopped = True
+        finally:
+            update_attempt = saved_update
+        expect(stopped and len(list((run_dir / "calls").glob("*.json"))) == 1, "call file survives ledger crash")
+        expect([item["state"] for item in load_budget(ledger)["attempts"]] == ["unknown"], "ledger stays unknown until the call file is recovered")
+        _recovered_counts(run_dir, ledger, image, digest, expect, "ledger crash")
+
+        run_dir = root / "kill-batch"
+        run_dir.mkdir()
+        ledger = _test_ledger(root / "kill-batch-budget", "kill-batch", 2, 0)
+        document = _control_document(str(image), digest, 4)
+        client = _FakeClient(fail_on=99)
+
+        def crash_save(*_args: Any, **_kwargs: Any) -> None:
+            raise RuntimeError("before batch save")
+
+        save_documents = crash_save
+        try:
+            execute_selected(run_dir, [document], empty_run("kill-batch"), [("vid:u9:c0", 0)], client, ledger)
+            stopped = False
+        except RuntimeError:
+            stopped = True
+        finally:
+            save_documents = saved_save
+        expect(stopped and client.posts == 1 and len(list((run_dir / "calls").glob("*.json"))) == 1, "batch crash keeps the call file")
+        expect([item["state"] for item in load_budget(ledger)["attempts"]] == ["completed"], "batch crash completes the ledger after the call file")
+        _recovered_counts(run_dir, ledger, image, digest, expect, "batch crash")
+    finally:
+        store_call = saved_store
+        update_attempt = saved_update
+        save_documents = saved_save
+        _REUSE_INDEX.clear()
+
+
+class _FakeClient:
+    def __init__(self, fail_on: int) -> None:
+        self.fail_on = fail_on
+        self.posts = 0
+
+    def post(self, wire: bytes) -> dict[str, Any]:
+        self.posts += 1
+        if self.posts == self.fail_on:
+            return {"http_status": 500, "response_body": "no", "elapsed_seconds": Decimal("0.01"), "error": None}
+        body = json.loads(wire.decode("utf-8"))
+        text = body["messages"][0]["content"][0]["text"]
+        marker = "응답할 targets: "
+        line = next(item for item in text.splitlines() if item.startswith(marker))
+        targets = json.loads(line[len(marker):])
+        parsed = {"frames": [
+            {"frame_id": frame_id, "decision": "keep", "reason": "합성 검사 화면", "duplicate_of": None}
+            for frame_id in targets
+        ]}
+        outer = {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(parsed, ensure_ascii=False)}}], "usage": {"prompt_tokens": 3, "completion_tokens": 4}}
+        return {"http_status": 200, "response_body": json.dumps(outer, ensure_ascii=False), "elapsed_seconds": Decimal("0.02"), "error": None}
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="T4 분석 대상 프레임 선정")
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--plan", action="store_true")
+    parser.add_argument("--extract", action="store_true")
+    parser.add_argument("--smoke", action="store_true")
+    parser.add_argument("--pilot", action="store_true")
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--render-only", action="store_true")
+    parser.add_argument("--audit-donors", action="store_true")
+    parser.add_argument("--init-budget", action="store_true")
+    parser.add_argument("--link-donors", action="store_true")
+    parser.add_argument("--review-pack", action="store_true")
+    parser.add_argument("--run-id")
+    parser.add_argument("--work-id")
+    parser.add_argument("--normal-limit", type=int)
+    parser.add_argument("--recovery-limit", type=int)
+    parser.add_argument("--output")
+    args = parser.parse_args(argv)
+    modes = [args.check, args.plan, args.extract, args.smoke, args.pilot, args.resume, args.render_only, args.audit_donors, args.init_budget, args.link_donors, args.review_pack]
+    if sum(bool(mode) for mode in modes) != 1:
+        print_problem("실행 모드를 하나만 지정해야 합니다.", "tests/T4/run_t4.py", "cli")
+        return 2
+    if args.plan and args.run_id:
+        print_problem("--plan과 --run-id는 함께 쓰지 않습니다.", "tests/T4/run_t4.py", "cli")
+        return 2
+    if args.check:
+        return command_check()
+    if args.audit_donors:
+        return command_audit_donors()
+    if args.plan:
+        return command_plan()
+    if args.init_budget:
+        if not args.work_id:
+            print_problem("work_id가 필요합니다.", "tests/T4/run_t4.py", "init-budget")
+            return 2
+        return command_init_budget(args.work_id, args.normal_limit, args.recovery_limit)
+    if not args.run_id:
+        print_problem("run_id가 필요합니다.", "tests/T4/run_t4.py", "cli")
+        return 2
+    if args.run_id in PROTECTED_RUN_IDS and (args.extract or args.smoke or args.pilot or args.resume or args.render_only or args.link_donors):
+        print_problem("기존 run은 수정하지 않습니다.", f"tests/T4/runs/{args.run_id}", args.run_id)
+        return 1
+    if args.review_pack:
+        if not args.output:
+            print_problem("검수 추출 경로가 필요합니다.", "tests/T4/run_t4.py", "review-pack")
+            return 2
+        return command_review_pack(RUNS_ROOT / args.run_id, Path(args.output))
+    run_dir = RUNS_ROOT / args.run_id
+    try:
+        with run_lock(run_dir):
+            if args.extract:
+                return command_extract(run_dir)
+            if args.render_only:
+                return command_render(run_dir)
+            if args.link_donors:
+                return command_link_donors(run_dir)
+            mode = "smoke" if args.smoke else "pilot" if args.pilot else "resume"
+            return command_execute(run_dir, mode)
+    except RuntimeError as exc:
+        print_problem(str(exc), str(run_dir), args.run_id)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

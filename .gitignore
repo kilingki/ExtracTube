@@ -44,5 +44,11 @@ data/
 # test output files
 tests/outputs/
 tests/T1/outputs/
-tests/T1_sweep/campaigns/
+tests/T1/sweep/campaigns/
 tests/T2/runs/
+tests/T3/runs/
+tests/T3/reviews/
+tests/T3/source_snapshots/
+tests/T4/runs/
+tests/T4/reviews/
+tests/T4/source_snapshots/
