@@ -857,13 +857,21 @@ def load_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]]:
     return problems, library
 
 
+def t1_source_path(ref: str) -> Path:
+    """Read historical T1 references from the current location without a symlink."""
+    legacy = "tests/T1_sweep/"
+    if ref.startswith(legacy):
+        ref = "tests/T1/sweep/" + ref[len(legacy):]
+    return ROOT / ref
+
+
 def _audit_candidate(raw: dict[str, Any], video: dict[str, Any], path: Path, t2_cache: dict[str, dict[str, Any]]) -> list[str]:
     problems: list[str] = []
     candidate_id = raw["candidate_id"]
     video_id = candidate_id.split(":", 1)[0]
     text_ref = raw.get("text_ref") or {}
     t2_path = ROOT / str(text_ref.get("t2_path") or "")
-    t1_path = ROOT / str(text_ref.get("t1_path") or "")
+    t1_path = t1_source_path(str(text_ref.get("t1_path") or ""))
     if raw.get("source_t2_ref") != text_ref.get("t2_path") or raw.get("source_t2_sha256") != text_ref.get("t2_sha256"):
         problems.append(f"{candidate_id} T2 참조가 text_ref와 다릅니다.")
     if not t2_path.is_file() or sha256_file(t2_path) != text_ref.get("t2_sha256"):

@@ -222,7 +222,8 @@ def create_campaign() -> Path:
     write_json(campaign / "manifest.json", manifest)
     write_json(campaign / "state.json", initial_state(campaign_id, plan))
     (campaign / "events.jsonl").write_text("", encoding="utf-8")
-    command = f"python3 -B tests/T1_sweep/run_sweep.py --resume {campaign.relative_to(engine.ROOT)}"
+    runner = Path(__file__).resolve().relative_to(engine.ROOT).as_posix()
+    command = f"python3 -B {runner} --resume {campaign.relative_to(engine.ROOT).as_posix()}"
     (campaign / "resume_command.txt").write_text(command + "\n", encoding="utf-8")
     (campaign / "pid.txt").write_text(str(os.getpid()) + "\n", encoding="utf-8")
     append_event(campaign, {"event": "created", "pid": os.getpid()})

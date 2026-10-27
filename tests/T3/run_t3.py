@@ -418,6 +418,14 @@ def _same_number(left: Any, right: Any, label: str) -> str | None:
     return None
 
 
+def t1_source_path(ref: str) -> Path:
+    """Read historical T1 references from the current location without a symlink."""
+    legacy = "tests/T1_sweep/"
+    if ref.startswith(legacy):
+        ref = "tests/T1/sweep/" + ref[len(legacy):]
+    return ROOT / ref
+
+
 def inspect_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]]:
     problems: list[str] = []
     validation_path = ROOT / T2_VALIDATION_RELATIVE
@@ -532,7 +540,7 @@ def inspect_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]
             if not isinstance(ref, str):
                 problems.append(f"원인: 참조 경로가 없습니다.\n파일: {relative}\n대상: {key}")
                 continue
-            ref_path = ROOT / ref
+            ref_path = t1_source_path(ref)
             if not ref_path.exists():
                 problems.append(f"원인: 참조 파일이 없습니다.\n파일: {ref}\n대상: {video_id}")
                 continue

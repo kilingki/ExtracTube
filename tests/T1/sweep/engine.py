@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import prompts
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 DATA_ROOT = ROOT / "data"
 T1_OUTPUTS = ROOT / "tests" / "T1" / "outputs"
 PLAN_PATH = Path(__file__).resolve().parent / "experiment_plan.json"
@@ -2431,7 +2431,7 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if args == ["--check"]:
         return run_checks()
-    print("실험 실행은 tests/T1_sweep/run_sweep.py를 사용합니다.", flush=True)
+    print("실험 실행은 tests/T1/sweep/run_sweep.py를 사용합니다.", flush=True)
     return 2
 
 

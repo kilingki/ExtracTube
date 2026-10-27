@@ -52,3 +52,7 @@ tests/T3/source_snapshots/
 tests/T4/runs/
 tests/T4/reviews/
 tests/T4/source_snapshots/
+tests/T5/runs/
+tests/T5/reviews/
+tests/T5/vendor/
+tests/T5/work/

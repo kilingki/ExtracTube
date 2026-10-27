@@ -103,7 +103,7 @@ T1 코드, prompts.py, outputs, 이 검증 문서는 기준선으로 보존한�
 다음 구조로 별도 실험 도구를 구현한다. 아래 파일은 이번 문서 수정에서 생성한 것이 아니라 Cursor가 구현할 대상이다.
 
 ```text
-tests/T1_sweep/
+tests/T1/sweep/
   run_sweep.py                  # --check / --run-all / --resume
   experiment_plan.json          # 두 단계 입력 목록·설정·반복·실패·후보 선정 정책
   prompts.py                    # 원문 3개, P1 VERIFY, 거리별 C1/C2/C3 CONFLICT
@@ -264,10 +264,10 @@ action은 keep 또는 merge다. reason은 비어 있지 않은 문자열이다.
 사용자가 Cursor에 이 문서를 실행하라고 시키면 아래까지 구현하고 실제 전체 실행을 시작한다. 이 문서는 현재 채팅에서 실험 실행을 요청하는 것은 아니며, 실행 주체는 이후 지시받은 Cursor다.
 
 ```bash
-python3 -B tests/T1_sweep/run_sweep.py --check
-python3 -B tests/T1_sweep/run_sweep.py --run-all
+python3 -B tests/T1/sweep/run_sweep.py --check
+python3 -B tests/T1/sweep/run_sweep.py --run-all
 # 중단되었다면 실제 campaign 경로로 재개
-python3 -B tests/T1_sweep/run_sweep.py --resume tests/T1_sweep/campaigns/<campaign_id>
+python3 -B tests/T1/sweep/run_sweep.py --resume tests/T1/sweep/campaigns/<campaign_id>
 ```
 
 #### 사전 점검 시점과 집계
@@ -374,4 +374,4 @@ def sample_boundaries(video_id, boundaries_final, sentence_count, seed=20261017)
 
 ### 10. Cursor에 그대로 전달할 요청문
 
-> tests/T1/validation_report.md의 ‘순차 반복 실험 명세’를 읽고, T1을 보존한 채 tests/T1_sweep에 설정 기반 실행기·평가기·중단 재개 기능을 구현해줘. 먼저 지정된 탐색용 4개 입력으로 E00~E12를 각각 2회씩 총 26회 순차 실행해줘. 탐색 결과만으로 기존 설정 중 잠정 후보 1개를 선정·고정한 다음, E00과 후보를 각각 2회씩 전체 8개 입력으로 총 4회 새로 실행해줘. 합계 30개 슬롯을 한 회차나 탐색 단계에서 멈추지 말고 끝까지 진행해줘. 사람 검수가 없어도 문서의 후보 선정·실패·미지원·시간 한도 규칙에 따라 이어가줘. 전체 결과와 탐색 4개/추가 확인 4개/전체 8개의 비교를 campaign의 summary.md에 정리해줘. 입력을 삭제하거나 T1을 덮어쓰거나 후보를 최종 결과에 맞춰 바꾸지 말아줘.
+> tests/T1/validation_report.md의 ‘순차 반복 실험 명세’를 읽고, T1을 보존한 채 tests/T1/sweep에 설정 기반 실행기·평가기·중단 재개 기능을 구현해줘. 먼저 지정된 탐색용 4개 입력으로 E00~E12를 각각 2회씩 총 26회 순차 실행해줘. 탐색 결과만으로 기존 설정 중 잠정 후보 1개를 선정·고정한 다음, E00과 후보를 각각 2회씩 전체 8개 입력으로 총 4회 새로 실행해줘. 합계 30개 슬롯을 한 회차나 탐색 단계에서 멈추지 말고 끝까지 진행해줘. 사람 검수가 없어도 문서의 후보 선정·실패·미지원·시간 한도 규칙에 따라 이어가줘. 전체 결과와 탐색 4개/추가 확인 4개/전체 8개의 비교를 campaign의 summary.md에 정리해줘. 입력을 삭제하거나 T1을 덮어쓰거나 후보를 최종 결과에 맞춰 바꾸지 말아줘.

@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = ROOT / "data"
 RUNS_ROOT = ROOT / "tests" / "T2" / "runs"
 INPUT_RELATIVE = (
-    "tests/T1_sweep/campaigns/20261017_181001_1c4a84/runs/confirm/E01/r01/attempt01"
+    "tests/T1/sweep/campaigns/20261017_181001_1c4a84/runs/confirm/E01/r01/attempt01"
 )
 INPUT_ROOT = ROOT / INPUT_RELATIVE
 
