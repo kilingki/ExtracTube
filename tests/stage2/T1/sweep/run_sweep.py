@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import argparse
 import hashlib
 import json

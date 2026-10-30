@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import argparse
 import contextlib
 import copy
@@ -24,13 +30,13 @@ from typing import Any, Iterator
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import prompts
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA_ROOT = ROOT / "data"
-RUNS_ROOT = ROOT / "tests" / "T2" / "runs"
+ROOT = EXPERIMENT_ROOT
+DATA_ROOT = resolve_experiment_path(ROOT / "data")
+RUNS_ROOT = resolve_experiment_path(ROOT / "tests" / "T2" / "runs")
 INPUT_RELATIVE = (
     "tests/T1/sweep/campaigns/20261017_181001_1c4a84/runs/confirm/E01/r01/attempt01"
 )
-INPUT_ROOT = ROOT / INPUT_RELATIVE
+INPUT_ROOT = resolve_experiment_path(ROOT / INPUT_RELATIVE)
 
 SCHEMA_VERSION = "t2.visual_candidates.v1"
 LOGIC_VERSION = "t2.decision.v1"

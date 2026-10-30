@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import argparse
 import fcntl
 import os
@@ -19,8 +25,8 @@ from typing import Any, Iterator
 import detector
 import review
 
-ROOT = Path(__file__).resolve().parents[2]
-RUNS_ROOT = ROOT / "tests" / "T3" / "runs"
+ROOT = EXPERIMENT_ROOT
+RUNS_ROOT = resolve_experiment_path(ROOT / "tests" / "T3" / "runs")
 INPUT_RELATIVE = "tests/T2/runs/20261020T184601Z_b6d662/budget_guard"
 T2_VALIDATION_RELATIVE = "tests/T2/runs/20261021T_delegated_review/validation.json"
 T2_REVIEW_RELATIVE = "tests/T2/runs/20261021T_delegated_review/review.md"
@@ -107,7 +113,7 @@ CODE_SOURCES = (
 
 
 def source_inventory() -> dict[str, Any]:
-    rows = [{"path": relative, "sha256": detector.sha256_file(ROOT / relative)} for relative in CODE_SOURCES]
+    rows = [{"path": relative, "sha256": detector.sha256_file(resolve_experiment_path(ROOT / relative))} for relative in CODE_SOURCES]
     by_path = {row["path"]: row["sha256"] for row in rows}
     return {
         "sources": rows,
@@ -119,7 +125,7 @@ def source_inventory() -> dict[str, Any]:
 
 
 def comparison_baseline() -> dict[str, Any]:
-    manifest_path = ROOT / B00_BASELINE_RELATIVE / "manifest.json"
+    manifest_path = resolve_experiment_path(ROOT / B00_BASELINE_RELATIVE / "manifest.json")
     digest = detector.sha256_file(manifest_path)
     if digest != B00_BASELINE_MANIFEST_SHA256:
         raise detector.T3Error(
@@ -127,7 +133,7 @@ def comparison_baseline() -> dict[str, Any]:
             stage="baseline",
             details={"expected": B00_BASELINE_MANIFEST_SHA256, "actual": digest},
         )
-    snapshot = detector.loads((ROOT / B00_SOURCE_SNAPSHOT / "snapshot.json").read_text(encoding="utf-8"))
+    snapshot = detector.loads((resolve_experiment_path(ROOT / B00_SOURCE_SNAPSHOT / "snapshot.json")).read_text(encoding="utf-8"))
     return {
         "run_id": "20261021T200213Z_cae64b",
         "path": B00_BASELINE_RELATIVE,
@@ -142,7 +148,7 @@ def comparison_baseline() -> dict[str, Any]:
 
 def comparison_baseline_b02() -> dict[str, Any]:
     b00 = comparison_baseline()
-    manifest_path = ROOT / B01_BASELINE_RELATIVE / "manifest.json"
+    manifest_path = resolve_experiment_path(ROOT / B01_BASELINE_RELATIVE / "manifest.json")
     digest = detector.sha256_file(manifest_path)
     if digest != B01_BASELINE_MANIFEST_SHA256:
         raise detector.T3Error(
@@ -150,7 +156,7 @@ def comparison_baseline_b02() -> dict[str, Any]:
             stage="baseline",
             details={"expected": B01_BASELINE_MANIFEST_SHA256, "actual": digest},
         )
-    snapshot = detector.loads((ROOT / B01_SOURCE_SNAPSHOT / "snapshot.json").read_text(encoding="utf-8"))
+    snapshot = detector.loads((resolve_experiment_path(ROOT / B01_SOURCE_SNAPSHOT / "snapshot.json")).read_text(encoding="utf-8"))
     return {
         "run_id": "20261022T055753Z_b11df4",
         "path": B01_BASELINE_RELATIVE,
@@ -170,7 +176,7 @@ def comparison_baseline_b02() -> dict[str, Any]:
 
 def comparison_baseline_b03() -> dict[str, Any]:
     b01 = comparison_baseline_b02()
-    manifest_path = ROOT / B02_BASELINE_RELATIVE / "manifest.json"
+    manifest_path = resolve_experiment_path(ROOT / B02_BASELINE_RELATIVE / "manifest.json")
     digest = detector.sha256_file(manifest_path)
     if digest != B02_BASELINE_MANIFEST_SHA256:
         raise detector.T3Error(
@@ -178,7 +184,7 @@ def comparison_baseline_b03() -> dict[str, Any]:
             stage="baseline",
             details={"expected": B02_BASELINE_MANIFEST_SHA256, "actual": digest},
         )
-    snapshot = detector.loads((ROOT / B02_SOURCE_SNAPSHOT / "snapshot.json").read_text(encoding="utf-8"))
+    snapshot = detector.loads((resolve_experiment_path(ROOT / B02_SOURCE_SNAPSHOT / "snapshot.json")).read_text(encoding="utf-8"))
     return {
         "run_id": b01["run_id"],
         "path": b01["path"],
@@ -199,7 +205,7 @@ def comparison_baseline_b03() -> dict[str, Any]:
 
 def comparison_baseline_b04() -> dict[str, Any]:
     b00 = comparison_baseline()
-    manifest_path = ROOT / B01_FULL_BASELINE_RELATIVE / "manifest.json"
+    manifest_path = resolve_experiment_path(ROOT / B01_FULL_BASELINE_RELATIVE / "manifest.json")
     digest = detector.sha256_file(manifest_path)
     if digest != B01_FULL_BASELINE_MANIFEST_SHA256:
         raise detector.T3Error(
@@ -207,7 +213,7 @@ def comparison_baseline_b04() -> dict[str, Any]:
             stage="baseline",
             details={"expected": B01_FULL_BASELINE_MANIFEST_SHA256, "actual": digest},
         )
-    snapshot = detector.loads((ROOT / B04_SOURCE_SNAPSHOT / "snapshot.json").read_text(encoding="utf-8"))
+    snapshot = detector.loads((resolve_experiment_path(ROOT / B04_SOURCE_SNAPSHOT / "snapshot.json")).read_text(encoding="utf-8"))
     return {
         "run_id": "20261022T111916Z_bf47f5",
         "path": B01_FULL_BASELINE_RELATIVE,
@@ -227,7 +233,7 @@ def comparison_baseline_b04() -> dict[str, Any]:
 
 def comparison_baseline_b05() -> dict[str, Any]:
     b04_view = comparison_baseline_b04()
-    manifest_path = ROOT / B04_RUN_RELATIVE / "manifest.json"
+    manifest_path = resolve_experiment_path(ROOT / B04_RUN_RELATIVE / "manifest.json")
     digest = detector.sha256_file(manifest_path)
     if digest != B04_RUN_MANIFEST_SHA256:
         raise detector.T3Error(
@@ -235,7 +241,7 @@ def comparison_baseline_b05() -> dict[str, Any]:
             stage="baseline",
             details={"expected": B04_RUN_MANIFEST_SHA256, "actual": digest},
         )
-    snapshot = detector.loads((ROOT / B05_SOURCE_SNAPSHOT / "snapshot.json").read_text(encoding="utf-8"))
+    snapshot = detector.loads((resolve_experiment_path(ROOT / B05_SOURCE_SNAPSHOT / "snapshot.json")).read_text(encoding="utf-8"))
     return {
         "run_id": b04_view["run_id"],
         "path": b04_view["path"],
@@ -256,7 +262,7 @@ def comparison_baseline_b05() -> dict[str, Any]:
 
 def comparison_baseline_b06() -> dict[str, Any]:
     b05_view = comparison_baseline_b05()
-    manifest_path = ROOT / B05_RUN_RELATIVE / "manifest.json"
+    manifest_path = resolve_experiment_path(ROOT / B05_RUN_RELATIVE / "manifest.json")
     digest = detector.sha256_file(manifest_path)
     if digest != B05_RUN_MANIFEST_SHA256:
         raise detector.T3Error(
@@ -264,7 +270,7 @@ def comparison_baseline_b06() -> dict[str, Any]:
             stage="baseline",
             details={"expected": B05_RUN_MANIFEST_SHA256, "actual": digest},
         )
-    snapshot = detector.loads((ROOT / B06_SOURCE_SNAPSHOT / "snapshot.json").read_text(encoding="utf-8"))
+    snapshot = detector.loads((resolve_experiment_path(ROOT / B06_SOURCE_SNAPSHOT / "snapshot.json")).read_text(encoding="utf-8"))
     return {
         "run_id": b05_view["run_id"],
         "path": b05_view["path"],
@@ -423,12 +429,12 @@ def t1_source_path(ref: str) -> Path:
     legacy = "tests/T1_sweep/"
     if ref.startswith(legacy):
         ref = "tests/T1/sweep/" + ref[len(legacy):]
-    return ROOT / ref
+    return resolve_experiment_path(ROOT / ref)
 
 
 def inspect_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]]:
     problems: list[str] = []
-    validation_path = ROOT / T2_VALIDATION_RELATIVE
+    validation_path = resolve_experiment_path(ROOT / T2_VALIDATION_RELATIVE)
     if not validation_path.exists():
         problems.append(f"원인: T2 검증 기록이 없습니다.\n파일: {T2_VALIDATION_RELATIVE}\n대상: validation")
         return problems, {}
@@ -438,7 +444,7 @@ def inspect_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]
     seen_ids: set[str] = set()
     for video_id in VIDEO_IDS:
         relative = f"{INPUT_RELATIVE}/{video_id}/visual_candidates.json"
-        path = ROOT / relative
+        path = resolve_experiment_path(ROOT / relative)
         if not path.exists():
             problems.append(f"원인: 입력 파일이 없습니다.\n파일: {relative}\n대상: {video_id}")
             continue
@@ -549,15 +555,15 @@ def inspect_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]
                 problems.append(f"원인: 참조 hash가 T2 기록과 다릅니다.\n파일: {ref}\n대상: {video_id}")
             references[key] = {"path": ref, "sha256": actual_hash}
         media = source.get("media") or {}
-        media_path = ROOT / str(media.get("path") or "")
-        metadata_path = ROOT / str(input_block.get("metadata") or "")
+        media_path = resolve_experiment_path(ROOT / str(media.get("path") or ""))
+        metadata_path = resolve_experiment_path(ROOT / str(input_block.get("metadata") or ""))
         metadata = detector.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
         video_result = (metadata.get("results") or {}).get("video") or {}
-        meta_video = ROOT / "data" / video_id / str(video_result.get("path") or "")
+        meta_video = resolve_experiment_path(ROOT / "data" / video_id / str(video_result.get("path") or ""))
         try:
-            inside = media_path.resolve().is_relative_to((ROOT / "data" / video_id).resolve())
+            inside = media_path.resolve().is_relative_to((resolve_experiment_path(ROOT / "data" / video_id)).resolve())
         except AttributeError:
-            inside = str(media_path.resolve()).startswith(str((ROOT / "data" / video_id).resolve()) + os.sep)
+            inside = str(media_path.resolve()).startswith(str((resolve_experiment_path(ROOT / "data" / video_id)).resolve()) + os.sep)
         if not media_path.exists() or not inside or media_path.resolve() != meta_video.resolve():
             problems.append(f"원인: 원본 영상 경로가 data/{video_id}의 같은 파일이 아닙니다.\n파일: {media.get('path')}\n대상: {video_id}")
         if media.get("result_id") != video_result.get("result_id") or media.get("sha256") != video_result.get("sha256"):
@@ -928,7 +934,7 @@ def render_document(run_dir: Path, video: dict[str, Any], plan: dict[str, Any], 
             _, image_problems = review.render_candidate_images(
                 document,
                 ffmpeg=video["media"] and "",
-                video=ROOT / video["media"]["path"],
+                video=resolve_experiment_path(ROOT / video["media"]["path"]),
                 frames_dir=video_dir / "frames",
                 repo_root=ROOT,
             )
@@ -950,7 +956,7 @@ def render_document_with_ffmpeg(
     _, problems = review.render_candidate_images(
         document,
         ffmpeg=ffmpeg,
-        video=ROOT / video["media"]["path"],
+        video=resolve_experiment_path(ROOT / video["media"]["path"]),
         frames_dir=run_dir / video["video_id"] / "frames",
         repo_root=ROOT,
     )
@@ -973,7 +979,7 @@ def manifest_matches(manifest: dict[str, Any], ffmpeg_info: dict[str, str], ffpr
     current = source_inventory()
     if code.get("sources"):
         for row in code["sources"]:
-            actual = detector.sha256_file(ROOT / row["path"])
+            actual = detector.sha256_file(resolve_experiment_path(ROOT / row["path"]))
             if actual != row.get("sha256"):
                 return f"소스 해시가 manifest와 다릅니다: {row.get('path')}"
         if code.get("runner_sha256") != current["runner_sha256"]:
@@ -990,13 +996,13 @@ def manifest_matches(manifest: dict[str, Any], ffmpeg_info: dict[str, str], ffpr
     if (runtime.get("ffprobe") or {}).get("path") != ffprobe_info["path"] or (runtime.get("ffprobe") or {}).get("version_line") != ffprobe_info["version_line"]:
         return "ffprobe 식별이 manifest와 다릅니다."
     for video in manifest["videos"]:
-        media_path = ROOT / video["media"]["path"]
+        media_path = resolve_experiment_path(ROOT / video["media"]["path"])
         if not media_path.exists():
             return f"원본 영상이 없습니다: {video['video_id']}"
         stat = media_path.stat()
         if stat.st_size != video["media"]["size"] or stat.st_mtime_ns != video["media"]["mtime_ns"]:
             return f"원본 size 또는 mtime_ns가 바뀌었습니다: {video['video_id']}"
-        current = detector.sha256_file(ROOT / video["source_path"])
+        current = detector.sha256_file(resolve_experiment_path(ROOT / video["source_path"]))
         if current != video["source_sha256"]:
             return f"입력 hash가 바뀌었습니다: {video['video_id']}"
     return None
@@ -1022,7 +1028,7 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
     wall_started = time.monotonic()
     new = reused = success = failed = 0
     sources = {
-        video["video_id"]: detector.loads((ROOT / video["source_path"]).read_text(encoding="utf-8"))
+        video["video_id"]: detector.loads((resolve_experiment_path(ROOT / video["source_path"])).read_text(encoding="utf-8"))
         for video in manifest["videos"]
     }
     abort = False
@@ -1060,7 +1066,7 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
                 try:
                     analysis = detector.detect_range(
                         ffmpeg,
-                        ROOT / video["media"]["path"],
+                        resolve_experiment_path(ROOT / video["media"]["path"]),
                         plan["video_start"],
                         plan["video_end"],
                         stream_time_base=Fraction(video["media"]["time_base"]["numerator"], video["media"]["time_base"]["denominator"]),
@@ -1077,8 +1083,8 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
                         baseline_relative = B01_BASELINE_RELATIVE
                     if baseline_relative is not None:
                         baseline_path = (
-                            ROOT / baseline_relative / video["video_id"] / "candidates"
-                            / f"u{plan['unit_index']}_c{plan['chunk_index']}.json"
+                            resolve_experiment_path(ROOT / baseline_relative / video["video_id"] / "candidates"
+                            / f"u{plan['unit_index']}_c{plan['chunk_index']}.json")
                         )
                         baseline = detector.loads(baseline_path.read_text(encoding="utf-8"))
                         contract = sample_contract_problem(analysis.get("samples") or [], baseline.get("samples") or [])
@@ -1195,8 +1201,8 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
             if manifest.get("config_id") == detector.CONFIG_ID_B06:
                 relation_problems = review.write_b06_comparison(
                     run_dir=run_dir,
-                    b01_dir=ROOT / B01_FULL_BASELINE_RELATIVE,
-                    b05_dir=ROOT / B05_RUN_RELATIVE,
+                    b01_dir=resolve_experiment_path(ROOT / B01_FULL_BASELINE_RELATIVE),
+                    b05_dir=resolve_experiment_path(ROOT / B05_RUN_RELATIVE),
                     manifest=manifest,
                     ffmpeg=ffmpeg,
                     repo_root=ROOT,
@@ -1208,8 +1214,8 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
             elif manifest.get("config_id") == detector.CONFIG_ID_B05:
                 relation_problems = review.write_b05_comparison(
                     run_dir=run_dir,
-                    b01_dir=ROOT / B01_FULL_BASELINE_RELATIVE,
-                    b04_dir=ROOT / B04_RUN_RELATIVE,
+                    b01_dir=resolve_experiment_path(ROOT / B01_FULL_BASELINE_RELATIVE),
+                    b04_dir=resolve_experiment_path(ROOT / B04_RUN_RELATIVE),
                     manifest=manifest,
                     ffmpeg=ffmpeg,
                     repo_root=ROOT,
@@ -1221,7 +1227,7 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
             elif manifest.get("config_id") == detector.CONFIG_ID_B04:
                 review.write_b04_comparison(
                     run_dir=run_dir,
-                    baseline_dir=ROOT / B01_FULL_BASELINE_RELATIVE,
+                    baseline_dir=resolve_experiment_path(ROOT / B01_FULL_BASELINE_RELATIVE),
                     manifest=manifest,
                     ffmpeg=ffmpeg,
                     repo_root=ROOT,
@@ -1229,7 +1235,7 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
             elif manifest.get("config_id") == detector.CONFIG_ID_B03:
                 review.write_b03_comparison(
                     run_dir=run_dir,
-                    baseline_dir=ROOT / B01_BASELINE_RELATIVE,
+                    baseline_dir=resolve_experiment_path(ROOT / B01_BASELINE_RELATIVE),
                     manifest=manifest,
                     ffmpeg=ffmpeg,
                     repo_root=ROOT,
@@ -1237,7 +1243,7 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
             elif manifest.get("config_id") == detector.CONFIG_ID_B02:
                 review.write_b01_comparison(
                     run_dir=run_dir,
-                    baseline_dir=ROOT / B01_BASELINE_RELATIVE,
+                    baseline_dir=resolve_experiment_path(ROOT / B01_BASELINE_RELATIVE),
                     manifest=manifest,
                     ffmpeg=ffmpeg,
                     repo_root=ROOT,
@@ -1245,7 +1251,7 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
             else:
                 review.write_b00_comparison(
                     run_dir=run_dir,
-                    baseline_dir=ROOT / B00_BASELINE_RELATIVE,
+                    baseline_dir=resolve_experiment_path(ROOT / B00_BASELINE_RELATIVE),
                     manifest=manifest,
                     ffmpeg=ffmpeg,
                     repo_root=ROOT,
@@ -1265,7 +1271,7 @@ def process_run(run_dir: Path, *, pilot_only: bool, subset_only: bool = False) -
 
 def publish_reviews(run_dir: Path, manifest: dict[str, Any], sources: dict[str, Any]) -> None:
     videos = []
-    t2_link = os.path.relpath((ROOT / T2_REVIEW_RELATIVE).resolve(), (run_dir / "placeholder").resolve())
+    t2_link = os.path.relpath((resolve_experiment_path(ROOT / T2_REVIEW_RELATIVE)).resolve(), (run_dir / "placeholder").resolve())
     for video in manifest["videos"]:
         shell = refresh_video(run_dir, video)
         videos.append(shell)
@@ -1283,7 +1289,7 @@ def publish_reviews(run_dir: Path, manifest: dict[str, Any], sources: dict[str, 
             plans[plan["candidate_id"]] = review.preview_plan(document)
             loaded.append(document)
         review_path = run_dir / video["video_id"] / "review.md"
-        link = os.path.relpath((ROOT / T2_REVIEW_RELATIVE).resolve(), review_path.parent.resolve())
+        link = os.path.relpath((resolve_experiment_path(ROOT / T2_REVIEW_RELATIVE)).resolve(), review_path.parent.resolve())
         review.write_video_review(
             shell, documents, sentences, plans,
             path=review_path, repo_root=ROOT, t2_review_link=Path(link).as_posix(),
@@ -1464,7 +1470,7 @@ def command_plan(*, config_id: str = "B00", subset_ids: list[str] | None = None)
 def command_render_only(run_dir: Path) -> int:
     manifest = detector.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
     ffmpeg = manifest["runtime"]["ffmpeg"]["path"]
-    sources = {video["video_id"]: detector.loads((ROOT / video["source_path"]).read_text(encoding="utf-8")) for video in manifest["videos"]}
+    sources = {video["video_id"]: detector.loads((resolve_experiment_path(ROOT / video["source_path"])).read_text(encoding="utf-8")) for video in manifest["videos"]}
     with run_lock(run_dir):
         for video in manifest["videos"]:
             for plan in video["candidates"]:

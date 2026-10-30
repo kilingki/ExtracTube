@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import argparse
 import base64
 import fcntl
@@ -28,9 +34,9 @@ import extract
 import prompts
 import review
 
-ROOT = Path(__file__).resolve().parents[2]
-RUNS_ROOT = ROOT / "tests" / "T4" / "runs"
-WORK_ROOT = ROOT / "tests" / "T4" / "work"
+ROOT = EXPERIMENT_ROOT
+RUNS_ROOT = resolve_experiment_path(ROOT / "tests" / "T4" / "runs")
+WORK_ROOT = resolve_experiment_path(ROOT / "tests" / "T4" / "work")
 B05_ROOT = "tests/T3/runs/20261024T175204Z_bdfca4"
 B05_MANIFEST_SHA = "33dfff0fd9b83283dd0975328178f1d20191b5e6ae239fd9c88fa6f618f6be95"
 CONFIG_ID = "A03"
@@ -733,7 +739,7 @@ def prompt_sha() -> str:
 
 
 def code_records() -> list[dict[str, str]]:
-    return [{"path": path, "sha256": sha256_file(ROOT / path)} for path in CODE_FILES]
+    return [{"path": path, "sha256": sha256_file(resolve_experiment_path(ROOT / path))} for path in CODE_FILES]
 
 
 def predecessor_record() -> dict[str, Any]:
@@ -746,7 +752,7 @@ def predecessor_record() -> dict[str, Any]:
     code = manifest.get("code") or []
     problems = []
     for item in code:
-        snapshot = ROOT / A03_SOURCE_DIR / Path(str(item["path"])).name
+        snapshot = resolve_experiment_path(ROOT / A03_SOURCE_DIR / Path(str(item["path"])).name)
         if not snapshot.is_file() or sha256_file(snapshot) != item.get("sha256"):
             problems.append(str(item.get("path")))
     if problems:
@@ -765,7 +771,7 @@ def predecessor_record() -> dict[str, Any]:
 
 def load_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]]:
     problems: list[str] = []
-    root = ROOT / B05_ROOT
+    root = resolve_experiment_path(ROOT / B05_ROOT)
     manifest_path = root / "manifest.json"
     acceptance_path = root / "acceptance.md"
     if not manifest_path.is_file() or not acceptance_path.is_file():
@@ -804,7 +810,7 @@ def load_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]]:
         problems.extend(_audit_candidate(raw, video, path, t2_cache))
         documents[candidate_id] = raw
     for video_id, video in videos.items():
-        source = ROOT / video["source_path"]
+        source = resolve_experiment_path(ROOT / video["source_path"])
         if source.is_file():
             payload = read_json(source)
             t2_ids.extend(item["candidate_id"] for item in payload.get("candidates") or [])
@@ -818,7 +824,7 @@ def load_inputs(ffmpeg: str, ffprobe: str) -> tuple[list[str], dict[str, Any]]:
             if video_id not in {item.split(':', 1)[0] for item in expected_ids}:
                 continue
             media = video["media"]
-            media_path = ROOT / media["path"]
+            media_path = resolve_experiment_path(ROOT / media["path"])
             if not media_path.is_file() or not str(media["path"]).startswith(f"data/{video_id}/"):
                 problems.append(f"{video_id} 원본 경로가 없습니다.")
                 continue
@@ -862,7 +868,7 @@ def t1_source_path(ref: str) -> Path:
     legacy = "tests/T1_sweep/"
     if ref.startswith(legacy):
         ref = "tests/T1/sweep/" + ref[len(legacy):]
-    return ROOT / ref
+    return resolve_experiment_path(ROOT / ref)
 
 
 def _audit_candidate(raw: dict[str, Any], video: dict[str, Any], path: Path, t2_cache: dict[str, dict[str, Any]]) -> list[str]:
@@ -870,7 +876,7 @@ def _audit_candidate(raw: dict[str, Any], video: dict[str, Any], path: Path, t2_
     candidate_id = raw["candidate_id"]
     video_id = candidate_id.split(":", 1)[0]
     text_ref = raw.get("text_ref") or {}
-    t2_path = ROOT / str(text_ref.get("t2_path") or "")
+    t2_path = resolve_experiment_path(ROOT / str(text_ref.get("t2_path") or ""))
     t1_path = t1_source_path(str(text_ref.get("t1_path") or ""))
     if raw.get("source_t2_ref") != text_ref.get("t2_path") or raw.get("source_t2_sha256") != text_ref.get("t2_sha256"):
         problems.append(f"{candidate_id} T2 참조가 text_ref와 다릅니다.")
@@ -910,7 +916,7 @@ def _audit_candidate(raw: dict[str, Any], video: dict[str, Any], path: Path, t2_
     t2_sentences = [item for item in t2_units[0].get("sentences") or [] if start <= int(item["index"]) < end]
     if [item["text"] for item in t1_sentences] != [item["text"] for item in t2_sentences]:
         problems.append(f"{candidate_id} T1과 T2 문장 텍스트가 다릅니다.")
-    alignment_path = ROOT / t2["input"]["alignment_sentences"]
+    alignment_path = resolve_experiment_path(ROOT / t2["input"]["alignment_sentences"])
     if sha256_file(alignment_path) != t2["input"]["alignment_sha256"]:
         problems.append(f"{candidate_id} alignment 해시가 다릅니다.")
         return problems
@@ -986,7 +992,7 @@ def _audit_samples(raw: dict[str, Any], media: dict[str, Any]) -> list[str]:
 
 def sentences_of(raw: dict[str, Any]) -> list[dict[str, Any]]:
     text_ref = raw["text_ref"]
-    t2 = read_json(ROOT / text_ref["t2_path"])
+    t2 = read_json(resolve_experiment_path(ROOT / text_ref["t2_path"]))
     unit = next(unit for unit in t2["units"] if int(unit["unit_index"]) == int(text_ref["unit_index"]))
     start = int(text_ref["sentence_start"])
     end = int(text_ref["sentence_end"])
@@ -1103,8 +1109,8 @@ def build_candidate(raw: dict[str, Any], video: dict[str, Any]) -> dict[str, Any
         "unit_index": int(raw["unit_index"]),
         "chunk_index": int(raw["chunk_index"]),
         "source_candidate": freeze(raw["source_candidate"]),
-        "source_t3_ref": rel(ROOT / B05_ROOT / f"{raw['candidate_id'].split(':', 1)[0]}/candidates/u{raw['unit_index']}_c{raw['chunk_index']}.json"),
-        "source_t3_sha256": sha256_file(ROOT / B05_ROOT / f"{raw['candidate_id'].split(':', 1)[0]}/candidates/u{raw['unit_index']}_c{raw['chunk_index']}.json"),
+        "source_t3_ref": rel(resolve_experiment_path(ROOT / B05_ROOT / f"{raw['candidate_id'].split(':', 1)[0]}/candidates/u{raw['unit_index']}_c{raw['chunk_index']}.json")),
+        "source_t3_sha256": sha256_file(resolve_experiment_path(ROOT / B05_ROOT / f"{raw['candidate_id'].split(':', 1)[0]}/candidates/u{raw['unit_index']}_c{raw['chunk_index']}.json")),
         "source_t2_ref": raw["source_t2_ref"],
         "source_t2_sha256": raw["source_t2_sha256"],
         "text_ref": freeze(text_ref),
@@ -1128,7 +1134,7 @@ def build_candidate(raw: dict[str, Any], video: dict[str, Any]) -> dict[str, Any
 
 def build_video_document(video_id: str, candidates: list[dict[str, Any]], video: dict[str, Any], probed: dict[str, Any]) -> dict[str, Any]:
     media = video["media"]
-    metadata = read_json(ROOT / video["references"]["metadata"]["path"])
+    metadata = read_json(resolve_experiment_path(ROOT / video["references"]["metadata"]["path"]))
     return {
         "schema_version": SCHEMA_VERSION,
         "config_id": CONFIG_ID,
@@ -1533,7 +1539,7 @@ def build_request(candidate: dict[str, Any], batch: dict[str, Any], decisions: d
     for role, frame_id in ordered:
         frame = frames[frame_id]
         vlm = frame.get("vlm") or {}
-        path = ROOT / str(vlm.get("path") or "")
+        path = resolve_experiment_path(ROOT / str(vlm.get("path") or ""))
         data = path.read_bytes()
         if sha256_bytes(data) != vlm.get("sha256"):
             raise RuntimeError(f"{frame_id} VLM 파일 해시가 기록과 다릅니다.")
@@ -2151,7 +2157,7 @@ def identity_problems(manifest: dict[str, Any]) -> list[str]:
         if recorded.get(item["path"]) != item["sha256"]:
             problems.append(f"코드 해시가 manifest와 다릅니다: {item['path']}")
     for item in manifest["input"]["candidates"]:
-        if sha256_file(ROOT / item["path"]) != item["sha256"]:
+        if sha256_file(resolve_experiment_path(ROOT / item["path"])) != item["sha256"]:
             problems.append(f"입력 해시가 manifest와 다릅니다: {item['path']}")
     return problems
 
@@ -2179,7 +2185,7 @@ def expected_vlm_size(width: int, height: int) -> tuple[int, int]:
 
 
 def _png_matches(info: dict[str, Any], width: int, height: int) -> bool:
-    path = ROOT / str(info.get("path") or "")
+    path = resolve_experiment_path(ROOT / str(info.get("path") or ""))
     if not path.is_file():
         return False
     data = path.read_bytes()
@@ -2345,15 +2351,15 @@ def command_extract(run_dir: Path) -> int:
                 vlm_rel = f"tests/T4/runs/{run['run_id']}/frames/{document['video_id']}/s{frame['stream_index']}_pts{frame['pts']}_vlm.png"
                 jobs.append({
                     "frame_id": frame["frame_id"],
-                    "media_path": str(ROOT / document["media"]["path"]),
+                    "media_path": str(resolve_experiment_path(ROOT / document["media"]["path"])),
                     "stream_index": frame["stream_index"],
                     "pts": frame["pts"],
                     "video_seconds": frame["video_seconds"],
                     "time_base": frame["time_base"],
                     "source_width": document["media"]["width"],
                     "source_height": document["media"]["height"],
-                    "full_path": str(ROOT / full_rel),
-                    "vlm_path": str(ROOT / vlm_rel),
+                    "full_path": str(resolve_experiment_path(ROOT / full_rel)),
+                    "vlm_path": str(resolve_experiment_path(ROOT / vlm_rel)),
                     "full_rel": full_rel,
                     "vlm_rel": vlm_rel,
                 })
@@ -2430,7 +2436,7 @@ def command_extract(run_dir: Path) -> int:
 def _files_match(record: dict[str, Any]) -> bool:
     for key in ("full", "vlm"):
         info = record.get(key) or {}
-        path = ROOT / str(info.get("path") or "")
+        path = resolve_experiment_path(ROOT / str(info.get("path") or ""))
         if not path.is_file() or sha256_file(path) != info.get("sha256"):
             return False
     return True
@@ -2617,8 +2623,8 @@ def closeout_payload(documents: list[dict[str, Any]], run: dict[str, Any], manif
                 targets.extend(batch["target_ids"])
                 if batch["status"] in incomplete:
                     incomplete[batch["status"]].append(batch["batch_id"])
-    retained_path = ROOT / REVIEW_RETAINED_PATH
-    route_path = ROOT / ROUTE_REVIEW_PATH
+    retained_path = resolve_experiment_path(ROOT / REVIEW_RETAINED_PATH)
+    route_path = resolve_experiment_path(ROOT / ROUTE_REVIEW_PATH)
     pack = review.build_contrast_pack(
         documents,
         _optional_json(retained_path),
@@ -2856,8 +2862,8 @@ def command_review_pack(run_dir: Path, output: Path) -> int:
             return 1
     manifest = read_json(run_dir / "manifest.json")
     documents = load_documents(run_dir)
-    retained_path = ROOT / REVIEW_RETAINED_PATH
-    route_path = ROOT / ROUTE_REVIEW_PATH
+    retained_path = resolve_experiment_path(ROOT / REVIEW_RETAINED_PATH)
+    route_path = resolve_experiment_path(ROOT / ROUTE_REVIEW_PATH)
     pack = review.build_contrast_pack(
         documents,
         _optional_json(retained_path),
@@ -2888,15 +2894,15 @@ def command_audit_donors() -> int:
         errors.append("prompts 또는 extract hash가 바뀌었습니다.")
     if not any("run_t4.py" in problem for problem in identity) or not any("review.py" in problem for problem in identity):
         errors.append("제어 코드 hash가 A03 manifest와 달라야 합니다.")
-    snapshot = read_json(ROOT / A03_SOURCE_DIR / "snapshot.json")
+    snapshot = read_json(resolve_experiment_path(ROOT / A03_SOURCE_DIR / "snapshot.json"))
     if snapshot.get("manifest_sha256") != sha256_file(manifest_path) or snapshot.get("manifest_sha256") != A03_MANIFEST_SHA256:
         errors.append("A03 manifest hash가 스냅샷과 다릅니다.")
     for item in manifest.get("code") or []:
-        copied = ROOT / A03_SOURCE_DIR / Path(str(item["path"])).name
+        copied = resolve_experiment_path(ROOT / A03_SOURCE_DIR / Path(str(item["path"])).name)
         if not copied.is_file() or sha256_file(copied) != item.get("sha256"):
             errors.append(f"스냅샷 소스가 manifest와 다릅니다: {item.get('path')}")
     for record in snapshot.get("protected_records") or []:
-        if sha256_file(ROOT / record["path"]) != record["sha256"]:
+        if sha256_file(resolve_experiment_path(ROOT / record["path"])) != record["sha256"]:
             errors.append(f"보호 기록이 바뀌었습니다: {record['path']}")
     count, digest = _call_digest(RUNS_ROOT / A03_RUN_ID / "calls")
     recorded = snapshot.get("a03_calls") or {}
@@ -2922,7 +2928,7 @@ def command_audit_donors() -> int:
                 if not isinstance(call_ref, str):
                     mismatches.append(f"{batch['batch_id']} call 없음")
                     continue
-                path = ROOT / call_ref
+                path = resolve_experiment_path(ROOT / call_ref)
                 try:
                     record = read_json(path)
                 except (OSError, json.JSONDecodeError):
@@ -3100,7 +3106,7 @@ def command_check() -> int:
     expect(transport_disposition({"http_status": None, "error": "Connection refused 생성 전", "generation_state": None}) == "unknown", "error text is unknown")
     expect(transport_disposition({"http_status": None, "error": "connection refused", "generation_state": "not_started"}) == "pre_generation", "explicit pre-generation")
     expect(transport_disposition({"http_status": 500, "generation_state": "not_started"}) == "http_response", "http status wins")
-    retained = read_json(ROOT / REVIEW_RETAINED_PATH)
+    retained = read_json(resolve_experiment_path(ROOT / REVIEW_RETAINED_PATH))
     retained_frame = "iVelddb1qQ4:s0:pts33276243"
     expect(retained["items"][0]["frame_id"] == retained_frame and retained["items"][0]["original_model_decision"] == "drop", "retained source drop")
     keep_frame = "iVelddb1qQ4:s0:pts33276200"

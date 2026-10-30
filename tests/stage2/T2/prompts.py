@@ -1,5 +1,11 @@
 """T2 프롬프트. P0는 첫 run, P1과 P2는 그 뒤의 단일 변경, P3는 충돌하는 기준을 정리한 재실험이다. P3_CTX2는 P3 기준을 유지하고 앞뒤 문맥 입력을 더한 조건이다. 줄바꿈은 LF다."""
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 P0 = (
     "영상 발화 텍스트를 보고 이 구간을 후속 시각 분석 후보로 남길지 판단한다.\n"
     "목표는 영상의 정보 가치가 있는 내용을 글과 필요한 시각 자료로 보존하는 것이다.\n"

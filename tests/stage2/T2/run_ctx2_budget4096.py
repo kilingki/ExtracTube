@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import copy
 import json
 import sys
@@ -11,9 +17,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_t2
 
-ROOT = Path(__file__).resolve().parents[2]
-BASELINE_RUN = ROOT / "tests" / "T2" / "runs" / "20261018T163714Z_27eb28"
-RUNS_ROOT = ROOT / "tests" / "T2" / "runs"
+ROOT = EXPERIMENT_ROOT
+BASELINE_RUN = resolve_experiment_path(ROOT / "tests" / "T2" / "runs" / "20261018T163714Z_27eb28")
+RUNS_ROOT = resolve_experiment_path(ROOT / "tests" / "T2" / "runs")
 MAX_TOKENS = 4096
 BUDGET_ERROR = "예산 제약으로 비교 불완전"
 ORDER = (

@@ -5,6 +5,12 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import json
 import sys
 from pathlib import Path
@@ -12,8 +18,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_t2
 
-ROOT = run_t2.ROOT
-RUNS_ROOT = ROOT / "tests" / "T2" / "runs"
+ROOT = EXPERIMENT_ROOT
+RUNS_ROOT = resolve_experiment_path(ROOT / "tests" / "T2" / "runs")
 MARKER = "수량·금액·시간이 조건과 결과로 서로 이어지면 needed다."
 ORDER = (
     ("iEMuJiVY9Oc", 0),

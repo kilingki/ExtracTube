@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import hashlib
 import json
 import math
@@ -17,10 +23,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import prompts
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA_ROOT = ROOT / "data"
-OUTPUTS_DIR = ROOT / "tests" / "T1" / "outputs"
-ARCHIVE_DIR = ROOT / "tests" / "T1" / "outputs_archive"
+ROOT = EXPERIMENT_ROOT
+DATA_ROOT = resolve_experiment_path(ROOT / "data")
+OUTPUTS_DIR = resolve_experiment_path(ROOT / "tests" / "T1" / "outputs")
+ARCHIVE_DIR = resolve_experiment_path(ROOT / "tests" / "T1" / "outputs_archive")
 REQUIRED_VIDEO_IDS = ("Fw-8hZhnH3Q", "CvuE-jyg-N8")
 
 MAX_SENTENCES = 40

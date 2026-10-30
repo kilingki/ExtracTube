@@ -1,5 +1,11 @@
 """Sweep 프롬프트. 자리표시자만 치환하고 str.format은 쓰지 않는다."""
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 BOUNDARY = """영상 전사에서 의미 단위의 경계를 찾는다. 새 의미 단위는 주제, 대상, 목적 중 하나가 바뀔 때 시작한다. 같은 주제의 설명, 근거, 예시는 한 단위로 둔다. 청크의 시작과 끝, 문장 수, 발화 길이는 경계가 아니다.
 
 각 줄의 형식은 [문장 index] 시작시각-종료시각 원문 이다. 원문과 시각은 이미 정해져 있다. 출력은 경계의 문장 index와 근거만 담는다. 문장 index는 아래 목록에 있는 값만 쓴다. 경계 index는 새 의미 단위의 첫 문장이다. 목록의 첫 문장 index는 경계로 고르지 않는다.

@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import copy
 import hashlib
 import importlib.util
@@ -20,9 +26,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import prompts
 
-ROOT = Path(__file__).resolve().parents[3]
-DATA_ROOT = ROOT / "data"
-T1_OUTPUTS = ROOT / "tests" / "T1" / "outputs"
+ROOT = EXPERIMENT_ROOT
+DATA_ROOT = resolve_experiment_path(ROOT / "data")
+T1_OUTPUTS = resolve_experiment_path(ROOT / "tests" / "T1" / "outputs")
 PLAN_PATH = Path(__file__).resolve().parent / "experiment_plan.json"
 MARKDOWN_ESCAPES = set("\\`*_{}[]<>|#")
 SEMANTIC_KEYS = (
@@ -2313,7 +2319,7 @@ def check_plan() -> None:
 
 
 def _t1_prompts():
-    path = ROOT / "tests" / "T1" / "prompts.py"
+    path = resolve_experiment_path(ROOT / "tests" / "T1" / "prompts.py")
     spec = importlib.util.spec_from_file_location("t1_prompts_baseline", path)
     if spec is None or spec.loader is None:
         raise RuntimeError("T1 prompts.py를 열 수 없습니다.")

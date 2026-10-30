@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_t2
 
-ROOT = run_t2.ROOT
-SOURCE = ROOT / "tests" / "T2" / "runs" / "20261020T184601Z_b6d662"
+ROOT = EXPERIMENT_ROOT
+SOURCE = resolve_experiment_path(ROOT / "tests" / "T2" / "runs" / "20261020T184601Z_b6d662")
 OUT = SOURCE / "budget_guard"
 P2 = run_t2.RUNS_ROOT / run_t2.P2_RUN_ID
 EXECUTION_SOURCES = (
-    ROOT / "tests" / "T2" / "run_t2.py",
-    ROOT / "tests" / "T2" / "apply_budget_guard.py",
+    resolve_experiment_path(ROOT / "tests" / "T2" / "run_t2.py"),
+    resolve_experiment_path(ROOT / "tests" / "T2" / "apply_budget_guard.py"),
 )
 
 

@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import sys as _path_sys
+from pathlib import Path as _WorkspacePath
+_path_sys.path.insert(0, str(next(parent for parent in _WorkspacePath(__file__).resolve().parents if (parent / "experiment_paths.py").is_file())))
+from experiment_paths import ROOT as EXPERIMENT_ROOT, resolve_path as resolve_experiment_path
+
+
 import copy
 import sys
 from pathlib import Path
@@ -9,8 +15,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_t2
 
-ROOT = run_t2.ROOT
-SOURCE_RUN = ROOT / "tests" / "T2" / "runs" / "20261020T184601Z_b6d662"
+ROOT = EXPERIMENT_ROOT
+SOURCE_RUN = resolve_experiment_path(ROOT / "tests" / "T2" / "runs" / "20261020T184601Z_b6d662")
 FALLBACK_DIR = SOURCE_RUN / "fallback"
 P2_DIR = run_t2.RUNS_ROOT / run_t2.P2_RUN_ID
 TARGETS = (
@@ -92,7 +98,7 @@ def load_targets(documents: dict[str, dict]) -> list[dict]:
         if not isinstance(ref, str):
             problems.append(f"{video_id} 단위 {unit_index}: 원본 call_ref가 없습니다.")
             continue
-        path = ROOT / ref
+        path = resolve_experiment_path(ROOT / ref)
         stored = run_t2.read_json(path)
         stored["_path"] = path
         if (stored.get("video_id"), stored.get("unit_index"), stored.get("chunk_index")) != ident:
