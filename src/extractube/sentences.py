@@ -1,10 +1,9 @@
 from __future__ import annotations
-
 import math
 from typing import Any
 
-POLICY_ID = "fa_sentences_a4f1c2e"
-PUNCT = set(".,?!。！？…~、，,:：;；\"'“”‘’()[]{}%&+")
+POLICY_ID = "fa_sentences_a4f1c2e_hyphen_v1"
+PUNCT = {"-"} | set(".,?!。！？…~、，,:：;；\"'“”‘’()[]{}%&+")
 CLOSERS = set("\"'”’)]}")
 SENT_END = set(".?!。！？…")
 

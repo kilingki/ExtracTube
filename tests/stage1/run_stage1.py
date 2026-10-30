@@ -476,7 +476,7 @@ def test_sentences() -> None:
         omitted_doc["omitted_chunks"] == [
             {"index": 0, "status": "skipped_empty_text", "start_sample": 0, "end_sample": 8000}
         ]
-        and omitted_doc["sentence_policy_id"] == "fa_sentences_a4f1c2e"
+        and omitted_doc["sentence_policy_id"] == sentences.POLICY_ID
         and omitted_doc["time_reference"] == "audio_start"
         and omitted_doc["overlap_deduplicated"] is True,
     )
@@ -500,6 +500,21 @@ def test_sentences() -> None:
     except sentences.SentenceError:
         raised = True
     check("sentence_mismatch_raises", raised)
+
+    # FA omits the separator from items; preserve it in source sentence text.
+    math_items = [
+        {"text": "a", "start_time": 0.1, "end_time": 0.2},
+        {"text": "b는", "start_time": 0.3, "end_time": 0.4},
+        {"text": "c다", "start_time": 0.5, "end_time": 0.6},
+    ]
+    math_doc = sentences.convert({
+        "audio": audio,
+        "chunks": [chunk(0, 0, 16000, "a-b는 c다.", math_items)],
+    })
+    check("sentence_math_hyphen_preserved",
+          math_doc["chunks"][0]["text"] == "a-b는 c다."
+          and math_doc["chunks"][0]["items"] == math_items)
+
 
 
 def test_pipeline(tmp: Path) -> None:
@@ -744,6 +759,7 @@ def test_redirect_and_body_limit(tmp: Path) -> None:
         )
     finally:
         server.shutdown()
+        server.server_close()
 
     tiny = settings.copy(max_body_bytes=32)
     client = HttpInferClient(tiny)
@@ -978,7 +994,7 @@ def assess_live(work: Path) -> dict[str, Any]:
     if (
         sentences_doc.get("time_reference") != "audio_start"
         or sentences_doc.get("overlap_deduplicated") is not True
-        or sentences_doc.get("sentence_policy_id") != "fa_sentences_a4f1c2e"
+        or sentences_doc.get("sentence_policy_id") != sentences.POLICY_ID
     ):
         problems.append("sentence document contract failed")
     for payload in (asr, fa, sentences_doc):
@@ -1112,6 +1128,10 @@ def run_live(repo: Path) -> dict[str, Any]:
 
 def main() -> int:
     import tempfile
+    import argparse
+    parser = argparse.ArgumentParser(description="Stage1 checks; --live explicitly enables real YouTube/ASR/FA")
+    parser.add_argument("--live", action="store_true")
+    args = parser.parse_args()
 
     test_alignment_validation()
     test_sentences()
@@ -1125,7 +1145,11 @@ def main() -> int:
         test_redirect_and_body_limit(tmp / "http")
         test_long_chunk(tmp / "long")
         test_empty_transcript(tmp / "empty")
-    repo = ROOT.parent
+    repo = ROOT.parents[1]
+    if not args.live:
+        failed = [item["name"] for item in CHECKS if not item["ok"]]
+        print("local_checks=" + str(len(CHECKS)) + " live=excluded")
+        return 1 if failed else 0
     live = run_live(repo)
     check(
         "live_youtube",
