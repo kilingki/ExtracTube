@@ -1,0 +1,472 @@
+{
+  "schema_version": "t5.visual_review.v1",
+  "reviewer": "Codex source-image review",
+  "reviewed_at": "2026-10-29",
+  "method": "All 29 source frames visually inspected in contact sheets; table also at full resolution. Reasons refer to visible source and T1 context; no new inference.",
+  "frames": [
+    {
+      "frame_id": "H2WN130OzLg:s0:pts19966608",
+      "sha256": "558c5a4e15cdd3a7484023c3de3f08c4a26819182624d2d3d2232229fe20c3d7",
+      "decision": "reject",
+      "reason_code": "promotional",
+      "reason": "커뮤니티 가입 안내가 중심이며 본문 설명을 돕는 도식·절차 자료의 효용이 낮다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_00.jpg",
+        "sha256": "5079937c6f1f8812161c1e052a7b434dea764e717cee7b1bc6ce1cff43f8721c",
+        "review_index": 0
+      }
+    },
+    {
+      "frame_id": "iEMuJiVY9Oc:s0:pts3030528",
+      "sha256": "54c32a3de32a821cf03f5788626cff00d35e2cf99a0162f0c393fb5209a9a97c",
+      "decision": "reject",
+      "reason_code": "unclear_handwriting",
+      "reason": "필기가 흐리고 작성 중이며 설명 구조를 단독으로 따라가기 어렵다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_00.jpg",
+        "sha256": "5079937c6f1f8812161c1e052a7b434dea764e717cee7b1bc6ce1cff43f8721c",
+        "review_index": 1
+      }
+    },
+    {
+      "frame_id": "7EJ-xotXiSE:s0:pts138138",
+      "sha256": "872d5604b17c92041cdb1fc8697bf59f8688680cdf349210580dfb622cb217f5",
+      "decision": "reject",
+      "reason_code": "intro_only",
+      "reason": "발표자와 도입 제목 위주로 본문에 추가할 시각 정보가 적다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_00.jpg",
+        "sha256": "5079937c6f1f8812161c1e052a7b434dea764e717cee7b1bc6ce1cff43f8721c",
+        "review_index": 2
+      }
+    },
+    {
+      "frame_id": "7EJ-xotXiSE:s0:pts14856842",
+      "sha256": "b354018e52115a053256f8d247e92ed24aa1f6704c2c383246a13c5551fd104b",
+      "decision": "reject",
+      "reason_code": "obscured",
+      "reason": "파일 선택 화면 대부분이 원본에서 모자이크되어 절차 이해에 불충분하다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_00.jpg",
+        "sha256": "5079937c6f1f8812161c1e052a7b434dea764e717cee7b1bc6ce1cff43f8721c",
+        "review_index": 3
+      }
+    },
+    {
+      "frame_id": "CvuE-jyg-N8:s0:pts56512456",
+      "sha256": "7dd4814d2b975345ee60cdd9e14a7f483da50d84235047d473502a764939417c",
+      "decision": "reject",
+      "reason_code": "clipped",
+      "reason": "필기 하단이 잘리고 발표자·자막에 일부 가려져 목록 전체를 전달하기 어렵다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_01.jpg",
+        "sha256": "37f07966e64ca6d11510f3d9f243329c6991caadedfd0046d530cb615253f3e9",
+        "review_index": 4
+      }
+    },
+    {
+      "frame_id": "Fw-8hZhnH3Q:s0:pts798720",
+      "sha256": "4721dd8b84e093019736777539d5404920597724b84ffdd76628548759fe7e2c",
+      "decision": "keep",
+      "reason_code": "useful_ui",
+      "reason": "상품 등록 화면의 카탈로그·판매방식 위치를 확인하는 데 도움이 된다.",
+      "caption": "상품 등록 화면의 카탈로그와 판매 방식 영역",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_01.jpg",
+        "sha256": "37f07966e64ca6d11510f3d9f243329c6991caadedfd0046d530cb615253f3e9",
+        "review_index": 5
+      }
+    },
+    {
+      "frame_id": "H2WN130OzLg:s0:pts10040976",
+      "sha256": "d98572b907d94a0f2c692b611c7dd10401e29bbe08c6c3e10531cb44922eab87",
+      "decision": "keep",
+      "reason_code": "useful_chart",
+      "reason": "핵심 비교 그래프가 가려지지 않아 음성 설명을 보조한다. 원본에 제시된 자료이며 통계의 외부 사실 검증은 하지 않았다.",
+      "caption": "영상에 제시된 업종별 추이 비교 그래프",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_01.jpg",
+        "sha256": "37f07966e64ca6d11510f3d9f243329c6991caadedfd0046d530cb615253f3e9",
+        "review_index": 6
+      }
+    },
+    {
+      "frame_id": "bjDkfjSmXVo:s0:pts28694666",
+      "sha256": "712ab775b9074fc5deaf8eda05735c2a72f32bebc407b41ddb9de4f475c3fd96",
+      "decision": "keep",
+      "reason_code": "useful_ui",
+      "reason": "상품 순위를 조회하는 화면 구성과 결과 행이 확인된다.",
+      "caption": "상품 순위 조회 도구의 결과 화면",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_01.jpg",
+        "sha256": "37f07966e64ca6d11510f3d9f243329c6991caadedfd0046d530cb615253f3e9",
+        "review_index": 7
+      }
+    },
+    {
+      "frame_id": "hGVL9XRU9IQ:s0:pts33276243",
+      "sha256": "bcb4bd4f938740b34e3bf2b2f1325d4ee2fa53dc993018eb9906e428988fca8f",
+      "decision": "keep",
+      "reason_code": "useful_slide",
+      "reason": "정산 안내 슬라이드와 강조 영역을 원본으로 볼 수 있다. 금융 조건의 현재 유효성을 검증한 자료가 아니다.",
+      "caption": "영상에 제시된 정산 안내 슬라이드",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_02.jpg",
+        "sha256": "c731774958e7db794f4763e65b3876fd124ddaccc7bb0b1d24b5c6baeae7d1c0",
+        "review_index": 8
+      }
+    },
+    {
+      "frame_id": "iEMuJiVY9Oc:s0:pts10582528",
+      "sha256": "42dac0ffd13d48ceb720dfb7af495da5000726cee3d6a01ea1280b3e91e92445",
+      "decision": "reject",
+      "reason_code": "unfinished",
+      "reason": "작성 중인 필기와 빈 영역이 많아 독립적인 설명 자료로 부족하다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_02.jpg",
+        "sha256": "c731774958e7db794f4763e65b3876fd124ddaccc7bb0b1d24b5c6baeae7d1c0",
+        "review_index": 9
+      }
+    },
+    {
+      "frame_id": "iEMuJiVY9Oc:s0:pts19125248",
+      "sha256": "82b1b8b15b34fa2d181332f1bdbe4483091682f737a73959476083196563a024",
+      "decision": "reject",
+      "reason_code": "unclear_handwriting",
+      "reason": "필기가 혼잡하고 흐려 관계를 읽기 어렵다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_02.jpg",
+        "sha256": "c731774958e7db794f4763e65b3876fd124ddaccc7bb0b1d24b5c6baeae7d1c0",
+        "review_index": 10
+      }
+    },
+    {
+      "frame_id": "iVelddb1qQ4:s0:pts35076041",
+      "sha256": "4c361ead64ae9f48779a6903db45ff75f6f6f6f859b8470b8eb3dc74abd8b716",
+      "decision": "reject",
+      "reason_code": "superseded",
+      "reason": "같은 의미 단위의 후속 프레임에서 그래프가 더 완성되어 후속 프레임을 선택한다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_02.jpg",
+        "sha256": "c731774958e7db794f4763e65b3876fd124ddaccc7bb0b1d24b5c6baeae7d1c0",
+        "review_index": 11
+      }
+    },
+    {
+      "frame_id": "7EJ-xotXiSE:s0:pts14811797",
+      "sha256": "f604bf9c834961b0fb29e2ed4ec466b3b43e2546da4d19a9d069e0002f90d3b8",
+      "decision": "reject",
+      "reason_code": "transient_overlay",
+      "reason": "전환 중 반투명 오버레이로 화면이 흐려 완성된 결과 프레임을 대신 선택한다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_03.jpg",
+        "sha256": "c48e6009445bbf6263827b15eada015b6b220d9869ea0933d393e4a27cc17c78",
+        "review_index": 12
+      }
+    },
+    {
+      "frame_id": "iVelddb1qQ4:s0:pts33276243",
+      "sha256": "6c82cbbb077503964b0d9d49543a4157aee7be02e6d33b52dde762db816f1c7a",
+      "decision": "reject",
+      "reason_code": "motion_blur",
+      "reason": "강한 움직임 흐림으로 주요 도식이 식별되지 않는다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_03.jpg",
+        "sha256": "c48e6009445bbf6263827b15eada015b6b220d9869ea0933d393e4a27cc17c78",
+        "review_index": 13
+      }
+    },
+    {
+      "frame_id": "7EJ-xotXiSE:s0:pts437437",
+      "sha256": "0fad567ffa79abe719b3d63df1b2ed117c94fedfe35e79ef9fa91accf683b7a5",
+      "decision": "reject",
+      "reason_code": "promotional",
+      "reason": "무료 제공 항목 안내로 본문 절차 설명에 대한 추가 효용이 낮다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_03.jpg",
+        "sha256": "c48e6009445bbf6263827b15eada015b6b220d9869ea0933d393e4a27cc17c78",
+        "review_index": 14
+      }
+    },
+    {
+      "frame_id": "7EJ-xotXiSE:s0:pts15726711",
+      "sha256": "dae1ab7d6024603aaa3627a5b13f5a8e62accb00a0ad78e1582907883615bb52",
+      "decision": "keep",
+      "reason_code": "useful_example",
+      "reason": "상품 이미지 생성 결과가 명확해 해당 의미 단위의 예시를 보조한다.",
+      "caption": "영상 속 도구에서 생성된 상품 이미지 예시",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_03.jpg",
+        "sha256": "c48e6009445bbf6263827b15eada015b6b220d9869ea0933d393e4a27cc17c78",
+        "review_index": 15
+      }
+    },
+    {
+      "frame_id": "CvuE-jyg-N8:s0:pts56721665",
+      "sha256": "3c3214f75134ef83c6cd959173988f4e9b1601d3dd720873454c221aa123a4b6",
+      "decision": "reject",
+      "reason_code": "clipped",
+      "reason": "필기 하단과 일부 내용이 가려지고 잘려 있어 불완전한 목록 전달을 피한다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_04.jpg",
+        "sha256": "b44323ab3fedcd2b454b1069e3b5640d32c51d0433916e51a57417f430f2bf55",
+        "review_index": 16
+      }
+    },
+    {
+      "frame_id": "Fw-8hZhnH3Q:s0:pts3223040",
+      "sha256": "0a8dac7bffa29a0b1f066783769bad79ddadb2392eb4ec6133649c1036776b97",
+      "decision": "keep",
+      "reason_code": "useful_ui",
+      "reason": "브랜드·상품명·카테고리 입력 영역을 볼 수 있어 앞선 화면과 다른 절차를 보조한다.",
+      "caption": "상품 등록 화면의 상품명과 카테고리 입력 영역",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_04.jpg",
+        "sha256": "b44323ab3fedcd2b454b1069e3b5640d32c51d0433916e51a57417f430f2bf55",
+        "review_index": 17
+      }
+    },
+    {
+      "frame_id": "H2WN130OzLg:s0:pts10064992",
+      "sha256": "84d6061c256d3a549bd347481f45374c4cdcd4eb1dd3e637b88b06c06d2498f0",
+      "decision": "reject",
+      "reason_code": "duplicate",
+      "reason": "선택한 동일 의미 단위의 그래프와 거의 같은 화면이다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_04.jpg",
+        "sha256": "b44323ab3fedcd2b454b1069e3b5640d32c51d0433916e51a57417f430f2bf55",
+        "review_index": 18
+      }
+    },
+    {
+      "frame_id": "bjDkfjSmXVo:s0:pts29444415",
+      "sha256": "1835b45ecf355b522d4f7bfbbf9cfdaca588007e9eab89c4885224ac0b367c64",
+      "decision": "reject",
+      "reason_code": "redundant_state",
+      "reason": "같은 의미 단위의 조회 화면을 이미 선택했다. 별도 비교 해석 없이 중복 이미지를 추가하지 않는다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_04.jpg",
+        "sha256": "b44323ab3fedcd2b454b1069e3b5640d32c51d0433916e51a57417f430f2bf55",
+        "review_index": 19
+      }
+    },
+    {
+      "frame_id": "hGVL9XRU9IQ:s0:pts31010980",
+      "sha256": "9be48a9d928c3adec11f4df944c65868b07d666b4c6eeee11abb76c084f835fa",
+      "decision": "reject",
+      "reason_code": "talking_heads",
+      "reason": "대화 장면과 자막 중심이라 선택한 정산 안내 슬라이드보다 시각적 설명 효용이 낮다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_05.jpg",
+        "sha256": "47c9cbd6d50dcd7627b1142dc231b9545fd9792d5f81a1e21570c4e0acdbda28",
+        "review_index": 20
+      }
+    },
+    {
+      "frame_id": "iEMuJiVY9Oc:s0:pts10475008",
+      "sha256": "c43eb91346e4be3be36a99f1b2827dca796ea9596166f37e2694781034fbfecc",
+      "decision": "reject",
+      "reason_code": "unfinished",
+      "reason": "필기가 미완성이며 판독이 어려워 생략한다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_05.jpg",
+        "sha256": "47c9cbd6d50dcd7627b1142dc231b9545fd9792d5f81a1e21570c4e0acdbda28",
+        "review_index": 21
+      }
+    },
+    {
+      "frame_id": "iEMuJiVY9Oc:s0:pts19363328",
+      "sha256": "fb7990a15f604cd4210a334c0b783f26c11ffc24fdc3e7bc89792a574d7a24c8",
+      "decision": "reject",
+      "reason_code": "erasing",
+      "reason": "칠판을 지우는 중이라 내용이 사라지고 흐리다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_05.jpg",
+        "sha256": "47c9cbd6d50dcd7627b1142dc231b9545fd9792d5f81a1e21570c4e0acdbda28",
+        "review_index": 22
+      }
+    },
+    {
+      "frame_id": "iEMuJiVY9Oc:s0:pts3007488",
+      "sha256": "3671c4eaaad471ab9275de0379ca52c71776e0d5c884bb219d9dd144b8e55a93",
+      "decision": "reject",
+      "reason_code": "unclear_handwriting",
+      "reason": "필기가 흐리고 작성 중이라 생략한다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_05.jpg",
+        "sha256": "47c9cbd6d50dcd7627b1142dc231b9545fd9792d5f81a1e21570c4e0acdbda28",
+        "review_index": 23
+      }
+    },
+    {
+      "frame_id": "iVelddb1qQ4:s0:pts36876840",
+      "sha256": "80311177a1ab3632be96ec2083955b4b4185b338adc370ee549e66284033bd8b",
+      "decision": "keep",
+      "reason_code": "useful_diagram",
+      "reason": "선·화살표·강조가 있는 완성된 그래프가 해당 음성 설명을 보조한다. 발표자가 가린 부분을 추정하지 않는다.",
+      "caption": "영상에 제시된 손그림 그래프와 강조 표시",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_06.jpg",
+        "sha256": "9150b4423f9c8ec553d56e990b6717f61f2b2fc3a4d509f8310e3acbd5c44723",
+        "review_index": 24
+      }
+    },
+    {
+      "frame_id": "wFikV0Y7NIk:s0:pts4420416",
+      "sha256": "0c4be985653cfc62bbecc0c2d982b2beec0ccc8f1e20668dc957185443dc371b",
+      "decision": "keep",
+      "reason_code": "useful_formula_image",
+      "reason": "주요 loss 수식 전체가 원본에서 보이며 음성 문맥에 연결된다. 논문 본문 전체 복원이나 수식 전사는 제공하지 않는다.",
+      "caption": "영상에 인용된 논문의 loss 수식 화면",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_06.jpg",
+        "sha256": "9150b4423f9c8ec553d56e990b6717f61f2b2fc3a4d509f8310e3acbd5c44723",
+        "review_index": 25
+      }
+    },
+    {
+      "frame_id": "dgGhsYSVzKc:s0:pts7968961",
+      "sha256": "2f9f87c57291eaba2b2d89413079bf736319a35d3368fc42c1bbf4d7ae09faef",
+      "decision": "keep",
+      "reason_code": "useful_formula_image",
+      "reason": "핵심 Attention 수식과 배열 관계를 원본으로 볼 수 있다. 어두운 주변 라벨을 추정하거나 전사하지 않는다.",
+      "caption": "Attention 수식과 배열을 설명하는 원본 화면",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_06.jpg",
+        "sha256": "9150b4423f9c8ec553d56e990b6717f61f2b2fc3a4d509f8310e3acbd5c44723",
+        "review_index": 26
+      }
+    },
+    {
+      "frame_id": "wFikV0Y7NIk:s0:pts10520510",
+      "sha256": "8a09df7cbb6d6a404507d40f0933c783118b9f681be9a5cd330e077eaee0c060",
+      "decision": "reject",
+      "reason_code": "low_contrast",
+      "reason": "중앙 수식은 보이지만 주변 벡터 화살표 대비가 낮아 벡터장 설명 자료로는 보수적으로 제외한다.",
+      "caption": "",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_06.jpg",
+        "sha256": "9150b4423f9c8ec553d56e990b6717f61f2b2fc3a4d509f8310e3acbd5c44723",
+        "review_index": 27
+      }
+    },
+    {
+      "frame_id": "dgGhsYSVzKc:s0:pts30492462",
+      "sha256": "ad2b1781d385faddd3308c7f1993ff4688e66f9e3dc97f30b2bc00c642ec54de",
+      "decision": "keep",
+      "reason_code": "useful_table_image",
+      "reason": "원본 크기에서 표의 행·열·수치 영역이 보인다. 영상의 오버레이는 그대로 유지하며 표 데이터나 HTML로 전사하지 않는다.",
+      "caption": "영상에 인용된 Attention 방식 비교 표",
+      "limitations": [
+        "Original video overlays, occlusion and contrast are retained. No OCR transcription or hidden content reconstruction."
+      ],
+      "review_evidence": {
+        "sheet": "tests/T5/work/visual_closeout/contact_07.jpg",
+        "sha256": "8ab114502fdf8a3e2bf3ab75e264d93dbf54904651d3dc38d17bf3197bc7f833",
+        "review_index": 28
+      }
+    }
+  ]
+}

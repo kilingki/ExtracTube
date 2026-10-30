@@ -1,0 +1,16 @@
+{
+  "status": "accepted_limited_image_first",
+  "run": "tests/T5/runs/20261028T184105Z_visual_closeout",
+  "handoff": "tests/T5/runs/20261028T184105Z_visual_closeout/stage3_handoff.json",
+  "handoff_sha256": "b380c419547c9f1d6c74a89e72e73a7e2d54b59d1d9b1734ccb0b5634a2a8cb5",
+  "acceptance": "tests/T5/runs/20261028T184105Z_visual_closeout/acceptance.json",
+  "counts": {
+    "not_assessed": 254,
+    "selected": 9,
+    "reviewed_omitted": 7,
+    "semantic_units": 270,
+    "reviewed_units": 16,
+    "reviewed_frames": 29,
+    "selected_assets": 10
+  }
+}
