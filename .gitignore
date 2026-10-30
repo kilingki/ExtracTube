@@ -56,3 +56,28 @@ tests/T5/runs/
 tests/T5/reviews/
 tests/T5/vendor/
 tests/T5/work/
+
+# Generated artifacts under the reorganized test layout
+/tests/stage1/outputs/
+/tests/stage2/**/outputs/
+/tests/stage2/**/campaigns/
+/tests/stage2/**/runs/
+/tests/stage2/**/reviews/
+/tests/stage2/**/source_snapshots/
+/tests/stage2/**/work/
+/tests/stage2/live/
+/tests/stage2/offline_validation.json
+
+# Historical archives and local rendering/OCR dependencies
+/tests/stage2/T5/archive/
+/tests/stage2/T5/resources/tools/
+/tests/stage2/T5/resources/vendor/
+/tests/stage2/T5/tools
+/tests/stage2/T5/vendor
+
+# Stage 3 execution artifacts and campaign pointers
+/tests/stage3/**/runs/
+/tests/stage3/**/reviews/
+/tests/stage3/**/*.lock
+/tests/stage3/**/campaign.json
+/tests/stage3/**/*_campaign.json
