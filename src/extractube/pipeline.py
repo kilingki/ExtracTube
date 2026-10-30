@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import json
 import shutil
 import time
@@ -7,14 +6,26 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
-
 from extractube import infer, media, sentences, store
 from extractube.errors import PipelineError
 from extractube.infer import ASR_FORM, SERVER_DEFAULTS
 from extractube.sentences import POLICY_ID, SentenceError
-from extractube.settings import Settings
+from extractube.settings import Settings, VisionSettings
 
 Log = Callable[[str], None]
+
+
+@dataclass
+class VisionResult:
+    video_id: str
+    work_dir: Path
+    run_id: str
+    execution_status: str
+    handoff_path: Path | None
+    stage3_usable: bool
+    warnings: list[dict]
+    inference_calls: int
+    reused_jobs: int
 
 
 @dataclass
@@ -32,12 +43,15 @@ class RunResult:
     asr_requests: int = 0
     fa_requests: int = 0
     audio_to_video_offset_seconds: float | None = None
+    vision: VisionResult | None = None
 
 
 def run(
     url: str,
     settings: Settings,
     *,
+    through: str = "stage1",
+    vision_settings: VisionSettings | None = None,
     force: bool = False,
     from_stage: str | None = None,
     client: Any | None = None,
@@ -45,6 +59,8 @@ def run(
     fault: str | None = None,
     log: Log | None = print,
 ) -> RunResult:
+    if through not in ("stage1", "stage2"):
+        raise PipelineError("through 값이 잘못되었습니다.", kind="usage")
     if force and from_stage:
         raise PipelineError("--force와 --from은 함께 지정할 수 없습니다.", kind="usage")
     if from_stage is not None and from_stage not in store.STAGES:
@@ -102,7 +118,7 @@ def run(
         chunks = sentence_payload.get("chunks")
         empty = isinstance(chunks, list) and len(chunks) == 0
         offset = meta.get("audio_to_video_offset_seconds")
-        return RunResult(
+        result = RunResult(
             video_id=video_id,
             work_dir=work,
             stages=outcomes,
@@ -113,6 +129,23 @@ def run(
         )
     finally:
         lock.release()
+
+    if through == "stage2":
+        from extractube.vision import run as run_visual
+
+        expected = {
+            kind: store.identity(result.stages[kind].record)
+            for kind in ("video", "sentences")
+        }
+        result.vision = run_visual(
+            result.video_id,
+            vision_settings or VisionSettings(infer_base_url=settings.infer_base_url),
+            data_root=settings.data_root,
+            force=force,
+            expected_inputs=expected,
+            log=log,
+        )
+    return result
 
 
 def _emit(log: Log | None, stage: str, *, reused: bool, elapsed: float) -> None:

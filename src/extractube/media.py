@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import json
 import math
 import shutil
@@ -8,9 +7,7 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 import yt_dlp
-
 from extractube.errors import PipelineError
 from extractube.settings import Settings
 

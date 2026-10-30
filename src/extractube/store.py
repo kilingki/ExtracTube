@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import fcntl
 import hashlib
 import json
@@ -7,10 +6,11 @@ import os
 import shutil
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
-
 from extractube.errors import PipelineError
+import re
+from .errors import VisionError
 
 STAGES = ("video", "wav", "asr", "fa", "sentences")
 DOWNSTREAM = {
@@ -247,3 +247,100 @@ def write_diagnostic(
         payload = {**payload, "body_path": f"diagnostics/{attempt_id}/body"}
     (dest / "error.json").write_text(dumps(payload), encoding="utf-8")
     return dest
+
+
+# Immutable visual artifacts and provenance.
+"""Durable artifacts, contained paths, immutable entries and per-run hashing."""
+
+SHA = re.compile(r'[0-9a-f]{64}\Z')
+RUN = re.compile(r'\d{8}T\d{6}Z_[0-9a-f]{12}\Z')
+
+def wire(obj, *, canonical=False):
+    return json.dumps(obj, ensure_ascii=False, separators=(',', ':'), sort_keys=canonical, allow_nan=False).encode('utf-8')
+
+def digest(obj):
+    return hashlib.sha256(wire(obj, canonical=True)).hexdigest()
+
+def sha(path):
+    return sha256_file(Path(path))
+
+def safe(work, relative):
+    if not isinstance(relative, str) or not relative or '\\' in relative or ':' in relative:
+        raise VisionError('안전하지 않은 artifact 경로입니다.', kind='input')
+    p = PurePosixPath(relative)
+    if p.is_absolute() or '..' in p.parts or '.' in p.parts:
+        raise VisionError('작업 폴더 밖 경로는 허용하지 않습니다.', kind='input')
+    path = Path(work) / relative
+    try:
+        path.resolve().relative_to(Path(work).resolve())
+    except ValueError as exc:
+        raise VisionError('작업 폴더 밖 symlink는 허용하지 않습니다.', kind='input') from exc
+    return path
+
+def fsync_dir(path):
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+def write(path, obj, *, immutable=False, raw=False):
+    path = Path(path)
+    data = obj if raw else wire(obj) + b'\n'
+    if immutable and path.exists():
+        if path.read_bytes() != data:
+            raise VisionError(f'불변 artifact 덮어쓰기 금지: {path.name}', kind='commit')
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name('.' + path.name + '.' + uuid.uuid4().hex + '.tmp')
+    try:
+        with tmp.open('xb') as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+        fsync_dir(path.parent)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+def pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError('duplicate JSON key')
+        result[key] = value
+    return result
+
+def loads(data):
+    if isinstance(data, bytes):
+        data = data.decode('utf-8', errors='strict')
+    return json.loads(data, object_pairs_hook=pairs, parse_constant=lambda x: (_ for _ in ()).throw(ValueError(x)))
+
+def read(path):
+    try:
+        return loads(Path(path).read_bytes())
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise VisionError(f'JSON 읽기 실패: {Path(path).name}', kind='validation') from exc
+
+def ref(work, path):
+    relative = Path(path).relative_to(work).as_posix()
+    safe(work, relative)
+    return {'path': relative, 'sha256': sha(path)}
+
+class HashCache:
+    def __init__(self):
+        self.entries = {}
+    def hash(self, path):
+        path = Path(path)
+        s = path.stat()
+        key = (str(path.resolve()), s.st_ino, s.st_size, s.st_mtime_ns)
+        if key not in self.entries:
+            self.entries[key] = sha(path)
+        return self.entries[key]
+    def check(self, work, reference):
+        if not isinstance(reference, dict) or not SHA.fullmatch(str(reference.get('sha256', ''))):
+            raise VisionError('SHA-256 참조 형식 오류입니다.', kind='validation')
+        p = safe(work, reference.get('path'))
+        if not p.is_file() or self.hash(p) != reference['sha256']:
+            raise VisionError(f'파일 hash가 다릅니다: {reference["path"]}', kind='validation')
+        return p

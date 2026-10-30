@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "extractube"
 version = "0.1.0"
-description = "ExtracTube stage 1 audio pipeline"
+description = "ExtracTube audio and image-first video pipeline"
 requires-python = ">=3.12"
-dependencies = ["yt-dlp"]
+dependencies = ["yt-dlp", "Pillow==12.3.0"]
 
 [project.scripts]
 extractube = "extractube.cli:main"

@@ -1,10 +1,8 @@
 from __future__ import annotations
-
 from pathlib import Path
 
-
 class PipelineError(Exception):
-    """A stage-1 failure. kind distinguishes usage, lock, http, and commit errors."""
+    """A pipeline failure. kind distinguishes usage, lock, http, and commit errors."""
 
     def __init__(
         self,
@@ -16,3 +14,14 @@ class PipelineError(Exception):
         super().__init__(message)
         self.kind = kind
         self.diagnostic = diagnostic
+
+
+class VisionError(PipelineError):
+    pass
+
+class InferencePaused(Exception):
+    def __init__(self, status):
+        self.status = status
+
+class InferenceJobFailed(VisionError):
+    pass
