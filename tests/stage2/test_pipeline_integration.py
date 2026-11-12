@@ -18,12 +18,12 @@ class PipelineIntegration(unittest.TestCase):
             with adapters(fake), patch.object(pipeline, "_reusable", return_value=True):
                 result = pipeline.run("https://example.test", Settings(data_root=root), video_id=VIDEO_ID, through="stage2", vision_settings=settings(), log=None)
                 self.assertTrue(result.vision.stage3_usable)
-                self.assertEqual(len(fake.calls), 7)
+                self.assertEqual(len(fake.calls), 4)
                 self.assertEqual(tuple(result.stages), store.STAGES)
                 again = pipeline.run("https://example.test", Settings(data_root=root), video_id=VIDEO_ID, through="stage2", vision_settings=settings(), log=None)
                 self.assertEqual(again.vision.inference_calls, 0)
                 self.assertEqual(again.vision.run_id, result.vision.run_id)
-                self.assertEqual(len(fake.calls), 7)
+                self.assertEqual(len(fake.calls), 4)
 
     def test_stage1_default_does_not_enter_visual_pipeline(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -49,3 +49,23 @@ class PipelineIntegration(unittest.TestCase):
                 with self.assertRaises(VisionError):
                     pipeline.run("https://example.test", Settings(data_root=root), video_id=VIDEO_ID, through="stage2", vision_settings=settings(), log=None)
             self.assertEqual(fake.calls, [])
+
+    def test_run_batch_groups_stage1_before_stage2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            seed(root)
+            events = []
+            orig_run = pipeline.run
+            def traced_run(url, cfg, **kw):
+                events.append(("stage1", url))
+                return orig_run(url, cfg, video_id=VIDEO_ID, **kw)
+            orig_vis = vision.run
+            def traced_vis(vid, cfg, **kw):
+                events.append(("stage2", vid))
+                return orig_vis(vid, cfg, **kw)
+            fake = FakeTransport()
+            with adapters(fake), patch.object(pipeline, "_reusable", return_value=True), patch.object(pipeline, "run", side_effect=traced_run), patch.object(vision, "run", side_effect=traced_vis):
+                batch = pipeline.run_batch(["https://example.test/1", "https://example.test/2"], Settings(data_root=root), through="stage2", vision_settings=settings(), adaptive_ceiling=True, log=None)
+            self.assertEqual(batch.succeeded, 2)
+            self.assertEqual(batch.failed, 0)
+            self.assertEqual([e[0] for e in events], ["stage1", "stage1", "stage2", "stage2"])

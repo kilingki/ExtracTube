@@ -17,7 +17,7 @@ class IntegrationTests(unittest.TestCase):
         with adapters(fake):
             result=run(VIDEO_ID,settings(),data_root=self.root,log=None)
             self.assertEqual(result.execution_status,'complete_with_warnings')
-            self.assertEqual(len(fake.calls),7)
+            self.assertEqual(len(fake.calls),4)
             h=read(result.handoff_path)
             self.assertEqual(h['source']['video_stream_start_seconds'],'10.000000000')
             self.assertEqual(h['source']['stream_index'],0)
@@ -30,7 +30,7 @@ class IntegrationTests(unittest.TestCase):
             pointer=(self.work/'vision/current.json').read_bytes()
             self.assertTrue(verify(VIDEO_ID,data_root=self.root)['ok'])
             again=run(VIDEO_ID,settings(),data_root=self.root,log=None)
-            self.assertEqual(again.inference_calls,0);self.assertEqual(again.run_id,result.run_id);self.assertEqual(len(fake.calls),7)
+            self.assertEqual(again.inference_calls,0);self.assertEqual(again.run_id,result.run_id);self.assertEqual(len(fake.calls),4)
             self.assertEqual(pointer,(self.work/'vision/current.json').read_bytes())
             image=self.work/h['assets'][0]['image']['path'];image.write_bytes(b'broken')
             with self.assertRaises(VisionError):verify(VIDEO_ID,data_root=self.root)
@@ -49,24 +49,26 @@ class IntegrationTests(unittest.TestCase):
             state=read(self.work/f'vision/runs/{result.run_id}/state.json');call=state['blocked_call_ids'][0]
             fake.mode=None
             resumed=run(VIDEO_ID,settings(),data_root=self.root,resume_run_id=result.run_id,retry_unknown_call_ids=(call,),log=None)
-            self.assertTrue(resumed.stage3_usable);self.assertEqual(len(fake.calls),8)
-            self.assertEqual(read(self.work/f'vision/runs/{result.run_id}/result.json')['budget']['http_calls'],8)
+            self.assertTrue(resumed.stage3_usable);self.assertEqual(len(fake.calls),5)
+            self.assertEqual(read(self.work/f'vision/runs/{result.run_id}/result.json')['budget']['http_calls'],5)
     def test_pause_resume_budget_and_omitted_defaults(self):
         fake=FakeTransport();small=replace(settings(),max_inference_calls=2)
         with adapters(fake):
             result=run(VIDEO_ID,small,data_root=self.root,log=None)
             self.assertEqual(result.execution_status,'paused_budget');self.assertEqual(len(fake.calls),2)
             resumed=run(VIDEO_ID,small,data_root=self.root,resume_run_id=result.run_id,resume_budget_limits={'max_inference_calls':30},log=None)
-            self.assertTrue(resumed.stage3_usable);self.assertEqual(len(fake.calls),7)
-            self.assertEqual(resumed.inference_calls,5)
+            self.assertTrue(resumed.stage3_usable);self.assertEqual(len(fake.calls),4)
+            self.assertEqual(resumed.inference_calls,2)
     def test_force_and_from(self):
         fake=FakeTransport()
         with adapters(fake):
             first=run(VIDEO_ID,settings(),data_root=self.root,log=None)
-            second=run(VIDEO_ID,settings(),data_root=self.root,from_stage='t5',log=None)
+            second=run(VIDEO_ID,settings(),data_root=self.root,from_stage='t4',log=None)
             self.assertNotEqual(first.run_id,second.run_id);self.assertEqual(second.inference_calls,1)
+            second_t5=run(VIDEO_ID,settings(),data_root=self.root,from_stage='t5',log=None)
+            self.assertEqual(second_t5.inference_calls,0)
             third=run(VIDEO_ID,settings(),data_root=self.root,force=True,log=None)
-            self.assertEqual(third.inference_calls,7)
+            self.assertEqual(third.inference_calls,4)
     def test_atomic_failure_keeps_previous_current(self):
         fake=FakeTransport()
         with adapters(fake):

@@ -33,3 +33,30 @@ class B05Tests(unittest.TestCase):
         self.assertTrue(all(r['statistics_mode']=='candidate_except_self' for r in rows))
         rows=[{'index':i,'t':D(i)} for i in range(4)];changes.b._neighbor_selection(rows)
         self.assertTrue(all(r['statistics_mode']=='absolute' for r in rows))
+
+    def test_consolidate_segments_merges_bottom_subtitle_only_and_preserves_any_upper_tile(self):
+        samples=[{'sample_index':i,'analysis_width':640,'analysis_height':360,'video_seconds':f'{i*2:.9f}'} for i in range(5)]
+        # 640x360 -> 8 cols x 4 rows (tiles 0..23 are upper 75%, tiles 24..31 are bottom 25%).
+        diffs=[
+            {'index':1,'before_sample':0,'after_sample':1,'global_mean':'0.012','passing_tile_indices':[26,27]},
+            {'index':2,'before_sample':1,'after_sample':2,'global_mean':'0.008','passing_tile_indices':[23]},
+            {'index':3,'before_sample':2,'after_sample':3,'global_mean':'0.042','passing_tile_indices':[24,25,26,27,28]},
+            {'index':4,'before_sample':3,'after_sample':4,'global_mean':'0.001','passing_tile_indices':[]},
+        ]
+        bounds=[
+            {'boundary_id':'c0:b0','difference_index':1,'video_seconds':'2.000000000'},
+            {'boundary_id':'c0:b1','difference_index':2,'video_seconds':'4.000000000'},
+            {'boundary_id':'c0:b2','difference_index':3,'video_seconds':'6.000000000'},
+        ]
+        segs=[
+            {'segment_index':0,'video_range':{'start':'0.000000000','end':'2.000000000'},'sample_indices':[0]},
+            {'segment_index':1,'video_range':{'start':'2.000000000','end':'4.000000000'},'sample_indices':[1]},
+            {'segment_index':2,'video_range':{'start':'4.000000000','end':'6.000000000'},'sample_indices':[2]},
+            {'segment_index':3,'video_range':{'start':'6.000000000','end':'9.000000000'},'sample_indices':[3,4]},
+        ]
+        vsegs=changes.consolidate_segments('c0',samples,diffs,bounds,segs)
+        # b0 (bottom-only [26,27]) merges g0+g1; b1 (upper tile 23) and b2 (major bottom wipe) MUST NOT merge!
+        self.assertEqual([vs['source_segment_indices'] for vs in vsegs],[[0,1],[2],[3]])
+        self.assertEqual(vsegs[0]['merged_boundary_ids'],['c0:b0'])
+        self.assertEqual(vsegs[0]['representative_sample_index'],1)
+        self.assertEqual(vsegs[2]['representative_sample_index'],4)

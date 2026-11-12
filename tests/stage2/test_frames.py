@@ -32,11 +32,16 @@ class FFmpegTests(unittest.TestCase):
                 self.assertTrue(p['samples']);self.assertEqual(p['differences'],changes.replay(p));self.assertEqual(p['samples'][-1]['roles'][-1],'tail')
                 self.assertEqual(sorted(i for g in p['segments'] for i in g['sample_indices']),list(range(len(p['samples']))))
                 result=frames.extract(ctx,p['samples'])
+                self.assertFalse((ctx.directory/'.tmp').exists())
                 self.assertEqual(set(result),{s['frame_id'] for s in p['samples']})
                 for fid,f in result.items():
                     self.assertEqual(f['video_seconds'],seconds(actual(f['pts'],f['time_base'],ctx.input['stream']['start_time'])))
                     self.assertEqual(f['full']['width'],160);frames.check_image(ctx,f['full']);frames.check_image(ctx,f['vlm'])
                 again=frames.extract(ctx,p['samples']);self.assertEqual({k:v['full'] for k,v in result.items()},{k:v['full'] for k,v in again.items()})
+                probe_ref=frames.extract_probe(ctx,'Fixture1234:u0:c0','.25','2.25')
+                frames.check_image(ctx,probe_ref)
+                self.assertFalse((ctx.directory/'.tmp').exists())
+                self.assertEqual(probe_ref,frames.extract_probe(ctx,'Fixture1234:u0:c0','.25','2.25'))
     def test_corrupt_png_and_time_base_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/'broken.png';p.write_bytes(b'not png')

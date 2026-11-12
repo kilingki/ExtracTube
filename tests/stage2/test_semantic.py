@@ -1,5 +1,5 @@
 import unittest
-from extractube.semantic import chunks, context, conflict_groups, validate_units
+from extractube.semantic import chunks, context, verify_batches, conflict_groups, validate_units
 from extractube.candidates import split
 from extractube.errors import VisionError
 
@@ -7,12 +7,21 @@ def sentences(n,text='x'):
     return [{'sentence_index':i,'text':text,'source_chunk':{'items':[{'start_time':i,'end_time':i+1}]}} for i in range(n)]
 
 class SemanticTests(unittest.TestCase):
-    def test_chunks_40_overlap_8_and_chars(self):
-        rows=chunks(sentences(73))
-        self.assertEqual([(r['sentence_start'],r['sentence_end']) for r in rows],[(0,40),(32,72),(64,73)])
-        rows=chunks(sentences(4,'x'*3000));self.assertTrue(all(r['char_count']<=6000 for r in rows))
+    def test_chunks_120_overlap_10_and_chars(self):
+        rows=chunks(sentences(235))
+        self.assertEqual([(r['sentence_start'],r['sentence_end']) for r in rows],[(0,120),(110,230),(220,235)])
+        rows=chunks(sentences(5,'x'*4000));self.assertTrue(all(r['char_count']<=12000 for r in rows))
         self.assertEqual(chunks([]),[])
-        with self.assertRaises(VisionError):chunks(sentences(1,'x'*6001))
+        with self.assertRaises(VisionError):chunks(sentences(1,'x'*12001))
+    def test_verify_batches_groups_nearby_boundaries(self):
+        ss=sentences(100,'문장')
+        batches=verify_batches(ss,[10,25,40,55,70])
+        self.assertEqual(len(batches),1)
+        self.assertEqual(batches[0]['targets'],[10,25,40,55,70])
+        ss_long=sentences(200,'가'*200)
+        multi=verify_batches(ss_long,[15,40,80,130,175])
+        self.assertGreater(len(multi),1)
+        self.assertEqual([t for b in multi for t in b['targets']],[15,40,80,130,175])
     def test_conflict_disagreement_connected_distance_two(self):
         rows=[{'chunk_index':0,'sentence_start':0,'sentence_end':40},{'chunk_index':1,'sentence_start':32,'sentence_end':72}]
         merged=[{'sentence_index':i,'sources':[{'chunk_index':0}]} for i in (10,12,14,35,50)]

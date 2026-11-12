@@ -23,7 +23,7 @@ class CrashTests(unittest.TestCase):
             self.assertEqual(len(fake.calls),1)
             directory=next((self.work/'vision/runs').iterdir())
             result=run(VIDEO_ID,settings(),data_root=self.root,resume_run_id=directory.name,log=None)
-            self.assertTrue(result.stage3_usable);self.assertEqual(len(fake.calls),7);self.assertEqual(result.inference_calls,6)
+            self.assertTrue(result.stage3_usable);self.assertEqual(len(fake.calls),4);self.assertEqual(result.inference_calls,3)
             self.assertTrue(verify(VIDEO_ID,data_root=self.root)['ok'])
     def test_sending_crash_without_complete_body_becomes_unknown(self):
         class CrashTransport(FakeTransport):
@@ -46,7 +46,7 @@ class CrashTests(unittest.TestCase):
             with patch.object(inference,'write',side_effect=crash),self.assertRaises(SystemExit):run(VIDEO_ID,settings(),data_root=self.root,log=None)
             self.assertEqual(len(fake.calls),0)
             directory=next((self.work/'vision/runs').iterdir());result=run(VIDEO_ID,settings(),data_root=self.root,resume_run_id=directory.name,log=None)
-            self.assertTrue(result.stage3_usable);self.assertEqual(result.inference_calls,7)
+            self.assertTrue(result.stage3_usable);self.assertEqual(result.inference_calls,4)
     def test_http_failure_not_retried_and_raw_preserved(self):
         class Bad(FakeTransport):
             def send(self,url,body,timeout,limit,on_headers):

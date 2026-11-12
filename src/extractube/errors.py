@@ -19,6 +19,10 @@ class PipelineError(Exception):
 class VisionError(PipelineError):
     pass
 
+
+class ContentError(PipelineError):
+    pass
+
 class InferencePaused(Exception):
     def __init__(self, status):
         self.status = status

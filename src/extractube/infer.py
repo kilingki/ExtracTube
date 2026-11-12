@@ -349,280 +349,953 @@ def _finite_time(value: Any, field: str) -> float:
 # Journaled JSON inference for semantic and visual decisions.
 """Strict task parsers and durable, serial InferSwap calls without implicit retries."""
 
-PARSER_POLICY='strict_json_tasks.v1'
+PARSER_POLICY = 'strict_json_tasks.v3'
+PROBE_KINDS = (
+    'whiteboard',
+    'slide',
+    'formula',
+    'ui',
+    'chart',
+    'table',
+    'diagram',
+    'demonstration',
+    'talking_head',
+    'other',
+)
+
+# Stage 2/3 response contracts and task payloads.
+
 
 def exact(obj, keys):
-    if not isinstance(obj,dict) or set(obj)!=set(keys):
+    if not isinstance(obj, dict) or set(obj) != set(keys):
         raise ValueError('응답 키가 계약과 다릅니다.')
 
+
 def reason(value, limit=None):
-    if not isinstance(value,str) or not value.strip() or (limit and len(value)>limit):
+    if not isinstance(value, str) or not value.strip() or (limit and len(value) > limit):
         raise ValueError('판정 사유가 유효하지 않습니다.')
+
 
 def index(value, allowed):
     if type(value) is not int or value not in allowed:
         raise ValueError('허용되지 않은 문장 index입니다.')
 
+
 def task_parse(obj, spec):
-    task=spec['task']; allowed=set(spec.get('allowed',[]))
-    if task=='t1.boundary':
-        exact(obj,['boundaries']); seen=set()
-        if not isinstance(obj['boundaries'],list): raise ValueError('boundaries 배열 오류')
+    task = spec['task']
+    allowed = set(spec.get('allowed', []))
+    if task == 't1.boundary':
+        exact(obj, ['boundaries'])
+        seen = set()
+        if not isinstance(obj['boundaries'], list):
+            raise ValueError('boundaries 배열 오류')
         for row in obj['boundaries']:
-            exact(row,['sentence_index','reason']);index(row['sentence_index'],allowed);reason(row['reason'])
-            if row['sentence_index'] in seen: raise ValueError('중복 경계')
+            exact(row, ['sentence_index', 'reason'])
+            index(row['sentence_index'], allowed)
+            reason(row['reason'], 300)
+            if row['sentence_index'] in seen:
+                raise ValueError('중복 경계')
             seen.add(row['sentence_index'])
-    elif task=='t1.conflict':
-        exact(obj,['decisions']);seen=set()
-        if not isinstance(obj['decisions'],list): raise ValueError('decisions 배열 오류')
+    elif task == 't1.conflict':
+        exact(obj, ['decisions'])
+        seen = set()
+        if not isinstance(obj['decisions'], list):
+            raise ValueError('decisions 배열 오류')
         for row in obj['decisions']:
-            if not isinstance(row,dict): raise ValueError('결정 객체 오류')
-            action=row.get('action');exact(row,['sentence_index','action','reason']+(['to_index'] if action=='move' else []))
-            index(row['sentence_index'],allowed);reason(row['reason'])
-            if action not in ('keep','drop','move') or row['sentence_index'] in seen: raise ValueError('충돌 결정 오류')
-            if action=='move':
-                index(row['to_index'],set(spec['move_allowed']))
-                if row['to_index']==row['sentence_index']: raise ValueError('동일 위치 이동')
+            if not isinstance(row, dict):
+                raise ValueError('결정 객체 오류')
+            action = row.get('action')
+            exact(
+                row,
+                ['sentence_index', 'action', 'reason'] + (['to_index'] if action == 'move' else []),
+            )
+            index(row['sentence_index'], allowed)
+            reason(row['reason'], 300)
+            if action not in ('keep', 'drop', 'move') or row['sentence_index'] in seen:
+                raise ValueError('충돌 결정 오류')
+            if action == 'move':
+                index(row['to_index'], set(spec['move_allowed']))
+                if row['to_index'] == row['sentence_index']:
+                    raise ValueError('동일 위치 이동')
             seen.add(row['sentence_index'])
-        if seen!=allowed: raise ValueError('누락된 후보')
-    elif task=='t1.verify':
-        exact(obj,['action','reason']);reason(obj['reason'])
-        if obj['action'] not in ('keep','merge'): raise ValueError('VERIFY action 오류')
-    elif task=='t2':
-        exact(obj,['decision','reason','evidence_sentence_indices']);reason(obj['reason'])
-        if obj['decision'] not in ('needed','not_needed','uncertain'): raise ValueError('T2 decision 오류')
-        ev=obj['evidence_sentence_indices']
-        if not isinstance(ev,list) or not 1<=len(ev)<=3 or any(type(i) is not int for i in ev) or len(set(ev))!=len(ev): raise ValueError('evidence 배열 오류')
-        for i in ev:index(i,allowed)
-    elif task in ('t4','t5'):
-        exact(obj,['frames'])
-        if not isinstance(obj['frames'],list) or len(obj['frames'])!=len(spec['targets']): raise ValueError('target 수 오류')
-        for row,target in zip(obj['frames'],spec['targets']):
-            if task=='t4':
-                exact(row,['frame_id','decision','reason','duplicate_of']);reason(row['reason'])
-                if row['decision'] not in ('keep','drop','uncertain') or row['duplicate_of'] is not None: raise ValueError('T4 decision 오류')
+        if seen != allowed:
+            raise ValueError('누락된 후보')
+    elif task == 't1.verify':
+        if 'targets' in spec:
+            exact(obj, ['verifications'])
+            if not isinstance(obj['verifications'], list) or len(obj['verifications']) != len(
+                spec['targets']
+            ):
+                raise ValueError('VERIFY 대상 수 오류')
+            for row, target in zip(obj['verifications'], spec['targets']):
+                exact(row, ['sentence_index', 'action', 'reason'])
+                reason(row['reason'], 300)
+                if type(row['sentence_index']) is not int or row['sentence_index'] != target:
+                    raise ValueError('VERIFY 순서/집합 오류')
+                if row['action'] not in ('keep', 'merge'):
+                    raise ValueError('VERIFY action 오류')
+        else:
+            exact(obj, ['action', 'reason'])
+            reason(obj['reason'], 300)
+            if obj['action'] not in ('keep', 'merge'):
+                raise ValueError('VERIFY action 오류')
+    elif task == 't2':
+        if 'chunks' in spec:
+            exact(obj, ['chunks'])
+            expected_ids = [c['chunk_id'] for c in spec['chunks']]
+            exact(obj['chunks'], expected_ids)
+            for c in spec['chunks']:
+                row = obj['chunks'][c['chunk_id']]
+                exact(row, ['decision', 'reason', 'evidence_sentence_indices'])
+                reason(row['reason'], 300)
+                if row['decision'] not in ('needed', 'not_needed', 'uncertain'):
+                    raise ValueError('T2 decision 오류')
+                ev = row['evidence_sentence_indices']
+                if (
+                    not isinstance(ev, list)
+                    or not 1 <= len(ev) <= 3
+                    or any(type(i) is not int for i in ev)
+                    or len(set(ev)) != len(ev)
+                ):
+                    raise ValueError('evidence 배열 오류')
+                chunk_allowed = set(c['allowed'])
+                for i in ev:
+                    index(i, chunk_allowed)
+        else:
+            exact(obj, ['decision', 'reason', 'evidence_sentence_indices'])
+            reason(obj['reason'], 300)
+            if obj['decision'] not in ('needed', 'not_needed', 'uncertain'):
+                raise ValueError('T2 decision 오류')
+            ev = obj['evidence_sentence_indices']
+            if (
+                not isinstance(ev, list)
+                or not 1 <= len(ev) <= 3
+                or any(type(i) is not int for i in ev)
+                or len(set(ev)) != len(ev)
+            ):
+                raise ValueError('evidence 배열 오류')
+            for i in ev:
+                index(i, allowed)
+    elif task == 't2.probe':
+        exact(obj, ['probes'])
+        if not isinstance(obj['probes'], dict):
+            raise ValueError('probes 객체 오류')
+        exact(obj['probes'], spec['chunk_ids'])
+        for cid in spec['chunk_ids']:
+            row = obj['probes'][cid]
+            exact(row, ['decision', 'visual_kind', 'reason'])
+            reason(row['reason'], 240)
+            if (
+                row['decision'] not in ('visual_info', 'talking_head', 'uncertain')
+                or row['visual_kind'] not in PROBE_KINDS
+            ):
+                raise ValueError('T2 probe enum 오류')
+    elif task in ('t4', 't5'):
+        exact(obj, ['frames'])
+        if not isinstance(obj['frames'], list) or len(obj['frames']) != len(spec['targets']):
+            raise ValueError('target 수 오류')
+        representatives = set(spec.get('context_ids', []))
+        omit_resolved = {}
+        for row, target in zip(obj['frames'], spec['targets']):
+            expected_keys = [
+                'frame_id',
+                'decision',
+                'relevance',
+                'readability',
+                'completeness',
+                'visual_kind',
+                'caption',
+                'reason',
+            ] + (['duplicate_of'] if task == 't4' else [])
+            exact(row, expected_keys)
+            reason(row['reason'], 300)
+            if (
+                row['decision'] not in ('use', 'omit', 'uncertain')
+                or row['relevance'] not in ('yes', 'no', 'uncertain')
+                or any(
+                    row[k] not in ('sufficient', 'insufficient', 'uncertain')
+                    for k in ('readability', 'completeness')
+                )
+                or row['visual_kind']
+                not in (
+                    'ui',
+                    'slide',
+                    'chart',
+                    'formula',
+                    'table',
+                    'diagram',
+                    'object',
+                    'place',
+                    'demonstration',
+                    'other',
+                    'unknown',
+                )
+            ):
+                raise ValueError('시각 선별 enum 오류')
+            duplicate = row.get('duplicate_of')
+            if row['decision'] == 'use':
+                if (
+                    row['relevance'] != 'yes'
+                    or row['readability'] != 'sufficient'
+                    or row['completeness'] != 'sufficient'
+                    or row['visual_kind'] == 'unknown'
+                ):
+                    raise ValueError('위험한 use 교차 조건')
+                if duplicate is not None:
+                    raise ValueError('use 프레임은 duplicate_of를 가질 수 없습니다.')
+                reason(row['caption'], 120)
+                if task == 't4':
+                    representatives.add(target)
             else:
-                exact(row,['frame_id','decision','relevance','readability','completeness','visual_kind','caption','reason']);reason(row['reason'],300)
-                if row['decision'] not in ('use','omit','uncertain') or row['relevance'] not in ('yes','no','uncertain') or any(row[k] not in ('sufficient','insufficient','uncertain') for k in ('readability','completeness')) or row['visual_kind'] not in ('ui','slide','chart','formula','table','diagram','object','place','demonstration','other','unknown'): raise ValueError('T5 enum 오류')
-                if row['decision']=='use':
-                    if row['relevance']!='yes' or row['readability']!='sufficient' or row['completeness']!='sufficient' or row['visual_kind']=='unknown': raise ValueError('위험한 use 교차 조건')
-                    reason(row['caption'],120)
-                elif row['caption'] is not None: raise ValueError('use 외 caption 금지')
-            if row['frame_id']!=target: raise ValueError('target 순서/집합 오류')
+                if row['caption'] is not None:
+                    raise ValueError('use 외 caption 금지')
+                if duplicate is not None:
+                    if row['decision'] != 'omit':
+                        raise ValueError('대체 프레임은 앞선 확정 use여야 합니다.')
+                    if duplicate not in representatives:
+                        if duplicate in omit_resolved:
+                            row['duplicate_of'] = omit_resolved[duplicate]
+                        else:
+                            raise ValueError('대체 프레임은 앞선 확정 use여야 합니다.')
+                if task == 't4' and row['decision'] == 'omit':
+                    omit_resolved[target] = row.get('duplicate_of')
+            if row['frame_id'] != target:
+                raise ValueError('target 순서/집합 오류')
     else:
         raise ValueError('알 수 없는 task')
     return obj
 
+
 def content_text(content):
-    if content is None: return None
-    if isinstance(content,str): return content
-    if isinstance(content,list):
-        parts=[]
+    if content is None:
+        return None
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
         for piece in content:
-            if isinstance(piece,str):parts.append(piece)
-            elif isinstance(piece,dict) and isinstance(piece.get('text'),str) and piece.get('type','text')=='text':parts.append(piece['text'])
-            else: raise ValueError('content 조각 오류')
+            if isinstance(piece, str):
+                parts.append(piece)
+            elif (
+                isinstance(piece, dict)
+                and isinstance(piece.get('text'), str)
+                and piece.get('type', 'text') == 'text'
+            ):
+                parts.append(piece['text'])
+            else:
+                raise ValueError('content 조각 오류')
         return ''.join(parts)
     raise ValueError('content 형식 오류')
 
-def parse_response(body,status,spec,thinking):
-    if status!=200: raise ValueError('http_error')
-    outer=loads(body)
-    if not isinstance(outer,dict) or not isinstance(outer.get('choices'),list) or len(outer['choices'])!=1: raise ValueError('choices 오류')
-    choice=outer['choices'][0]
-    if not isinstance(choice,dict) or not isinstance(choice.get('message'),dict): raise ValueError('message 오류')
-    content=content_text(choice['message'].get('content')); finish=choice.get('finish_reason');usage=outer.get('usage')
-    info={'finish_reason':finish,'usage':usage,'reasoning':choice['message'].get('reasoning_content',choice['message'].get('reasoning'))}
-    if spec['task']=='t2' and thinking and finish=='length' and (content is None or not content.strip()) and isinstance(usage,dict) and type(usage.get('completion_tokens')) is int and usage['completion_tokens']==4096 and isinstance(usage.get('completion_tokens_details'),dict) and type(usage['completion_tokens_details'].get('reasoning_tokens')) is int and usage['completion_tokens_details']['reasoning_tokens']==4096:
-        return None,'budget_exhausted',info
-    if finish!='stop' or not content or not content.strip(): raise ValueError('finish_reason/content 오류')
-    text=content.strip()
+
+def parse_response(body, status, spec, thinking, validator=None):
+    if status != 200:
+        raise ValueError('http_error')
+    outer = loads(body)
+    if (
+        not isinstance(outer, dict)
+        or not isinstance(outer.get('choices'), list)
+        or len(outer['choices']) != 1
+    ):
+        raise ValueError('choices 오류')
+    choice = outer['choices'][0]
+    if not isinstance(choice, dict) or not isinstance(choice.get('message'), dict):
+        raise ValueError('message 오류')
+    content = content_text(choice['message'].get('content'))
+    finish = choice.get('finish_reason')
+    usage = outer.get('usage')
+    info = {
+        'finish_reason': finish,
+        'usage': usage,
+        'reasoning': choice['message'].get('reasoning_content', choice['message'].get('reasoning')),
+    }
+    if (
+        spec['task'] == 't2'
+        and thinking
+        and finish == 'length'
+        and (content is None or not content.strip())
+        and isinstance(usage, dict)
+        and type(usage.get('completion_tokens')) is int
+        and usage['completion_tokens'] == 4096
+        and isinstance(usage.get('completion_tokens_details'), dict)
+        and type(usage['completion_tokens_details'].get('reasoning_tokens')) is int
+        and usage['completion_tokens_details']['reasoning_tokens'] == 4096
+    ):
+        return None, 'budget_exhausted', info
+    if finish != 'stop' or not content or not content.strip():
+        raise ValueError('finish_reason/content 오류')
+    text = content.strip()
     if text.startswith('```'):
-        match=re.fullmatch(r'```(?:json)?\s*\n(.*?)\n```',text,re.S)
-        if not match: raise ValueError('코드 펜스 오류')
-        text=match.group(1)
-    parsed=task_parse(loads(text),spec)
-    return parsed,'succeeded',info
+        match = re.fullmatch(r'```(?:json)?\s*\n(.*?)\n```', text, re.S)
+        if not match:
+            raise ValueError('코드 펜스 오류')
+        text = match.group(1)
+    parsed = (validator or task_parse)(loads(text), spec)
+    return parsed, 'succeeded', info
+
 
 def response_metadata(body):
     try:
-        outer=loads(body);choice=outer['choices'][0];message=choice['message']
-        return {'finish_reason':choice.get('finish_reason'),'usage':outer.get('usage'),'reasoning':message.get('reasoning_content',message.get('reasoning'))}
-    except (ValueError,UnicodeError,KeyError,IndexError,TypeError):
+        outer = loads(body)
+        choice = outer['choices'][0]
+        message = choice['message']
+        return {
+            'finish_reason': choice.get('finish_reason'),
+            'usage': outer.get('usage'),
+            'reasoning': message.get('reasoning_content', message.get('reasoning')),
+        }
+    except (ValueError, UnicodeError, KeyError, IndexError, TypeError):
         return {}
 
 
 class HttpTransport:
-    def send(self,url,body,timeout,limit,on_headers):
-        request=urllib.request.Request(url,data=body,method='POST',headers={'Content-Type':'application/json'})
-        opener=urllib.request.build_opener(_NoRedirect())
+    def send(self, url, body, timeout, limit, on_headers):
+        request = urllib.request.Request(
+            url, data=body, method='POST', headers={'Content-Type': 'application/json'}
+        )
+        opener = urllib.request.build_opener(_NoRedirect())
         try:
-            response=opener.open(request,timeout=timeout)
+            response = opener.open(request, timeout=timeout)
         except urllib.error.HTTPError as exc:
-            response=exc
+            response = exc
         with response:
-            status=response.code; headers=dict(response.headers)
-            on_headers(status,headers)
-            chunks=[];size=0
+            status = response.code
+            headers = dict(response.headers)
+            on_headers(status, headers)
+            chunks = []
+            size = 0
             try:
-                while size<=limit:
-                    block=response.read(min(65536,limit+1-size))
-                    if not block: break
-                    chunks.append(block);size+=len(block)
-                data=b''.join(chunks)
+                while size <= limit:
+                    block = response.read(min(65536, limit + 1 - size))
+                    if not block:
+                        break
+                    chunks.append(block)
+                    size += len(block)
+                data = b''.join(chunks)
             except http.client.IncompleteRead as exc:
-                data=b''.join(chunks)+exc.partial
-                return {'status':status,'body':data[:limit+1],'complete':False,'error':'incomplete_body'}
-            except (OSError,http.client.HTTPException) as exc:
-                return {'status':status,'body':b''.join(chunks),'complete':False,'error':type(exc).__name__}
-            length=response.headers.get('Content-Length')
-            complete=size<=limit and (length is None or size==int(length))
-            return {'status':status,'body':data,'complete':complete,'error':None if complete else ('body_too_large' if size>limit else 'incomplete_body')}
+                data = b''.join(chunks) + exc.partial
+                return {
+                    'status': status,
+                    'body': data[: limit + 1],
+                    'complete': False,
+                    'error': 'incomplete_body',
+                }
+            except (OSError, http.client.HTTPException) as exc:
+                return {
+                    'status': status,
+                    'body': b''.join(chunks),
+                    'complete': False,
+                    'error': type(exc).__name__,
+                }
+            length = response.headers.get('Content-Length')
+            complete = size <= limit and (length is None or size == int(length))
+            return {
+                'status': status,
+                'body': data,
+                'complete': complete,
+                'error': (
+                    None if complete else ('body_too_large' if size > limit else 'incomplete_body')
+                ),
+            }
+
 
 def make_transport(settings):
     return HttpTransport()
 
-def body_for(settings,content,thinking):
-    return {'model':settings.qwen_body_model,'messages':[{'role':'user','content':content}],'temperature':0,'max_tokens':4096,'stream':False,'chat_template_kwargs':{'enable_thinking':thinking}}
 
-def validate_entry(ctx,entry,spec):
-    if entry['status'] not in ('succeeded','budget_exhausted'):raise ValueError('캐시 terminal 오류')
-    request=read(ctx.hashes.check(ctx.work,entry['request']))
-    record=read(ctx.hashes.check(ctx.work,entry['call']))
-    data=ctx.hashes.check(ctx.work,entry['response']).read_bytes()
-    if hashlib.sha256(wire(request['body'])).hexdigest()!=request['body_sha256'] or record['job_key']!=entry['job_key'] or not record['response_complete']: raise ValueError('캐시 출처 오류')
-    for reference in request['critical_refs']+request['image_refs']:ctx.hashes.check(ctx.work,reference)
-    parsed,status,info=parse_response(data,record['http_status'],spec,request['thinking'])
-    if parsed!=entry['parsed'] or status!=entry['status']:raise ValueError('캐시 재파싱 오류')
-    return parsed,status
+def body_for(settings, content, thinking):
+    return {
+        'model': settings.qwen_body_model,
+        'messages': [{'role': 'user', 'content': content}],
+        'temperature': 0,
+        'max_tokens': 4096,
+        'stream': False,
+        'chat_template_kwargs': {'enable_thinking': thinking},
+    }
 
-def recover_calls(work,run_dir,state):
+
+def visual_schema(task, spec):
+    def obj(props):
+        return {
+            'type': 'object',
+            'properties': props,
+            'required': list(props),
+            'additionalProperties': False,
+        }
+
+    text = {'type': 'string', 'minLength': 1, 'maxLength': 300}
+    common = {'frame_id': {'type': 'string', 'enum': spec['targets']}, 'reason': text}
+    fields = {
+        **common,
+        'relevance': {'type': 'string', 'enum': ['yes', 'no', 'uncertain']},
+        'readability': {'type': 'string', 'enum': ['sufficient', 'insufficient', 'uncertain']},
+        'completeness': {'type': 'string', 'enum': ['sufficient', 'insufficient', 'uncertain']},
+        'visual_kind': {
+            'type': 'string',
+            'enum': [
+                'ui',
+                'slide',
+                'chart',
+                'formula',
+                'table',
+                'diagram',
+                'object',
+                'place',
+                'demonstration',
+                'other',
+                'unknown',
+            ],
+        },
+    }
+    known_kinds = {
+        'type': 'string',
+        'enum': [v for v in fields['visual_kind']['enum'] if v != 'unknown'],
+    }
+    n = len(spec['targets'])
+    if task == 't4':
+        prefix = []
+        for idx, target in enumerate(spec['targets']):
+            item_fields = {**fields, 'frame_id': {'const': target}}
+            prior = spec.get('context_ids', []) + spec['targets'][:idx]
+            use = {
+                **item_fields,
+                'decision': {'const': 'use'},
+                'duplicate_of': {'type': 'null'},
+                'relevance': {'const': 'yes'},
+                'readability': {'const': 'sufficient'},
+                'completeness': {'const': 'sufficient'},
+                'visual_kind': known_kinds,
+                'caption': {'type': 'string', 'minLength': 1, 'maxLength': 120},
+            }
+            omit_null = {
+                **item_fields,
+                'decision': {'const': 'omit'},
+                'duplicate_of': {'type': 'null'},
+                'caption': {'type': 'null'},
+            }
+            variants = [obj(use), obj(omit_null)]
+            if prior:
+                omit_dup = {
+                    **item_fields,
+                    'decision': {'const': 'omit'},
+                    'duplicate_of': {'type': 'string', 'enum': prior},
+                    'relevance': {'const': 'yes'},
+                    'caption': {'type': 'null'},
+                }
+                variants.append(obj(omit_dup))
+            uncertain = {
+                **item_fields,
+                'decision': {'const': 'uncertain'},
+                'duplicate_of': {'type': 'null'},
+                'caption': {'type': 'null'},
+            }
+            variants.append(obj(uncertain))
+            prefix.append({'anyOf': variants})
+        return obj(
+            {
+                'frames': {
+                    'type': 'array',
+                    'prefixItems': prefix,
+                    'items': False,
+                    'minItems': n,
+                    'maxItems': n,
+                }
+            }
+        )
+    use = {
+        **fields,
+        'decision': {'const': 'use'},
+        'relevance': {'const': 'yes'},
+        'readability': {'const': 'sufficient'},
+        'completeness': {'const': 'sufficient'},
+        'visual_kind': known_kinds,
+        'caption': {'type': 'string', 'minLength': 1, 'maxLength': 120},
+    }
+    row = {
+        'anyOf': [
+            obj(use),
+            obj(
+                {
+                    **fields,
+                    'decision': {'type': 'string', 'enum': ['omit', 'uncertain']},
+                    'caption': {'type': 'null'},
+                }
+            ),
+        ]
+    }
+    return obj({'frames': {'type': 'array', 'items': row, 'minItems': n, 'maxItems': n}})
+
+
+def probe_schema(spec):
+    def obj(props):
+        return {
+            'type': 'object',
+            'properties': props,
+            'required': list(props),
+            'additionalProperties': False,
+        }
+
+    props = {
+        cid: obj(
+            {
+                'decision': {
+                    'type': 'string',
+                    'enum': ['visual_info', 'talking_head', 'uncertain'],
+                },
+                'visual_kind': {'type': 'string', 'enum': list(PROBE_KINDS)},
+                'reason': {'type': 'string', 'minLength': 1, 'maxLength': 240},
+            }
+        )
+        for cid in spec['chunk_ids']
+    }
+    return obj({'probes': obj(props)})
+
+
+def text_schema(task, spec):
+    def obj(props):
+        return {
+            'type': 'object',
+            'properties': props,
+            'required': list(props),
+            'additionalProperties': False,
+        }
+
+    text = {'type': 'string', 'minLength': 1, 'maxLength': 300}
+    if task == 't1.boundary' and spec.get('allowed'):
+        allowed = spec['allowed']
+        row = obj({'sentence_index': {'type': 'integer', 'enum': allowed}, 'reason': text})
+        return obj({'boundaries': {'type': 'array', 'items': row, 'maxItems': len(allowed)}})
+    if task == 't1.conflict' and spec.get('allowed'):
+        allowed = spec['allowed']
+        n = len(allowed)
+        keep_drop = obj(
+            {
+                'sentence_index': {'type': 'integer', 'enum': allowed},
+                'action': {'type': 'string', 'enum': ['keep', 'drop']},
+                'reason': text,
+            }
+        )
+        if spec.get('move_allowed'):
+            move = obj(
+                {
+                    'sentence_index': {'type': 'integer', 'enum': allowed},
+                    'action': {'const': 'move'},
+                    'to_index': {'type': 'integer', 'enum': spec['move_allowed']},
+                    'reason': text,
+                }
+            )
+            item = {'anyOf': [keep_drop, move]}
+        else:
+            item = keep_drop
+        return obj({'decisions': {'type': 'array', 'items': item, 'minItems': n, 'maxItems': n}})
+    if task == 't1.verify' and spec.get('targets'):
+        targets = spec['targets']
+        n = len(targets)
+        row = obj(
+            {
+                'sentence_index': {'type': 'integer', 'enum': targets},
+                'action': {'type': 'string', 'enum': ['keep', 'merge']},
+                'reason': text,
+            }
+        )
+        return obj({'verifications': {'type': 'array', 'items': row, 'minItems': n, 'maxItems': n}})
+    if task == 't2' and spec.get('chunks'):
+        props = {}
+        for c in spec['chunks']:
+            allowed = c['allowed']
+            props[c['chunk_id']] = obj(
+                {
+                    'decision': {'type': 'string', 'enum': ['needed', 'not_needed', 'uncertain']},
+                    'evidence_sentence_indices': {
+                        'type': 'array',
+                        'items': {'type': 'integer', 'enum': allowed},
+                        'minItems': 1,
+                        'maxItems': min(3, len(allowed)),
+                    },
+                    'reason': text,
+                }
+            )
+        return obj({'chunks': obj(props)})
+    return None
+
+
+def task_body(settings, content, task, spec):
+    body = body_for(settings, content, False)
+    if task in ('t4', 't5'):
+        body['response_format'] = {
+            'type': 'json_schema',
+            'json_schema': {
+                'name': task + '_frames',
+                'strict': True,
+                'schema': visual_schema(task, spec),
+            },
+        }
+    elif task == 't2.probe':
+        body['response_format'] = {
+            'type': 'json_schema',
+            'json_schema': {'name': 't2_probe', 'strict': True, 'schema': probe_schema(spec)},
+        }
+    else:
+        schema = text_schema(task, spec)
+        if schema is not None:
+            body['response_format'] = {
+                'type': 'json_schema',
+                'json_schema': {'name': task.replace('.', '_'), 'strict': True, 'schema': schema},
+            }
+    return body
+
+
+def validate_entry(ctx, entry, spec):
+    if entry['status'] not in ('succeeded', 'budget_exhausted'):
+        raise ValueError('캐시 terminal 오류')
+    request = read(ctx.hashes.check(ctx.work, entry['request']))
+    record = read(ctx.hashes.check(ctx.work, entry['call']))
+    data = ctx.hashes.check(ctx.work, entry['response']).read_bytes()
+    if (
+        hashlib.sha256(wire(request['body'])).hexdigest() != request['body_sha256']
+        or record['job_key'] != entry['job_key']
+        or not record['response_complete']
+    ):
+        raise ValueError('캐시 출처 오류')
+    for reference in request['critical_refs'] + request['image_refs']:
+        ctx.hashes.check(ctx.work, reference)
+    parsed, status, info = getattr(ctx, 'parse_response', parse_response)(
+        data, record['http_status'], spec, request['thinking']
+    )
+    if parsed != entry['parsed'] or status != entry['status']:
+        raise ValueError('캐시 재파싱 오류')
+    return parsed, status
+
+
+def recover_calls(work, run_dir, state, *, parser=None, namespace='vision'):
     """Finish local parsing if a complete body exists; otherwise freeze sending as unknown."""
-    for journal_path in sorted((run_dir/'jobs').glob('*.json')) if (run_dir/'jobs').exists() else []:
-        journal=read(journal_path)
-        for attempt in journal.get('attempts',[]):
-            call_dir=safe(work,attempt['path']);record_path=call_dir/'record.json'
-            if record_path.exists():continue
-            request=read(call_dir/'request.json')
-            if attempt['status']=='reserved':
-                attempt['status']='not_sent';continue
-            if attempt['status']!='sending':continue
-            status='unknown';parsed=None;info={};error='crash_sending';http_status=None;complete=False
-            if (call_dir/'response.body').is_file() and (call_dir/'transport.json').is_file():
-                transport=read(call_dir/'transport.json');http_status=transport['http_status'];complete=True
-                try:parsed,status,info=parse_response((call_dir/'response.body').read_bytes(),http_status,request['spec'],request['thinking'])
-                except (ValueError,UnicodeError,TypeError,KeyError) as exc:status='failed';error=str(exc);info=response_metadata((call_dir/'response.body').read_bytes())
-            record={'call_id':call_dir.name,'job_key':journal['job_key'],'status':status,'http_status':http_status,'body_sha':hashlib.sha256((call_dir/'response.body').read_bytes()).hexdigest() if complete else None,'parsed':parsed,'error_code':error,'finish_reason':info.get('finish_reason'),'usage':info.get('usage'),'reasoning':info.get('reasoning'),'elapsed_seconds':request['timeout'],'response_complete':complete}
-            write(record_path,record,immutable=True);attempt['status']=status
-            if status in ('succeeded','budget_exhausted'):
-                recovered=SimpleRecoveryContext(work,run_dir.name)
-                save_entry(recovered,journal['job_key'],make_entry(recovered,journal['job_key'],call_dir,record))
-        write(journal_path,journal)
+    for journal_path in (
+        sorted((run_dir / 'jobs').glob('*.json')) if (run_dir / 'jobs').exists() else []
+    ):
+        journal = read(journal_path)
+        for attempt in journal.get('attempts', []):
+            call_dir = safe(work, attempt['path'])
+            record_path = call_dir / 'record.json'
+            if record_path.exists():
+                continue
+            request = read(call_dir / 'request.json')
+            if attempt['status'] == 'reserved':
+                attempt['status'] = 'not_sent'
+                continue
+            if attempt['status'] != 'sending':
+                continue
+            status = 'unknown'
+            parsed = None
+            info = {}
+            error = 'crash_sending'
+            http_status = None
+            complete = False
+            if (call_dir / 'response.body').is_file() and (call_dir / 'transport.json').is_file():
+                transport = read(call_dir / 'transport.json')
+                http_status = transport['http_status']
+                complete = True
+                try:
+                    parsed, status, info = (parser or parse_response)(
+                        (call_dir / 'response.body').read_bytes(),
+                        http_status,
+                        request['spec'],
+                        request['thinking'],
+                    )
+                except (ValueError, UnicodeError, TypeError, KeyError) as exc:
+                    status = 'failed'
+                    error = str(exc)
+                    info = response_metadata((call_dir / 'response.body').read_bytes())
+            record = {
+                'call_id': call_dir.name,
+                'job_key': journal['job_key'],
+                'status': status,
+                'http_status': http_status,
+                'body_sha': (
+                    hashlib.sha256((call_dir / 'response.body').read_bytes()).hexdigest()
+                    if complete
+                    else None
+                ),
+                'parsed': parsed,
+                'error_code': error,
+                'finish_reason': info.get('finish_reason'),
+                'usage': info.get('usage'),
+                'reasoning': info.get('reasoning'),
+                'elapsed_seconds': request['timeout'],
+                'response_complete': complete,
+            }
+            write(record_path, record, immutable=True)
+            attempt['status'] = status
+            if status in ('succeeded', 'budget_exhausted'):
+                recovered = SimpleRecoveryContext(work, run_dir.name, namespace)
+                save_entry(
+                    recovered,
+                    journal['job_key'],
+                    make_entry(recovered, journal['job_key'], call_dir, record),
+                )
+        write(journal_path, journal)
+
 
 def budget_from_journals(run_dir):
-    calls=0;elapsed=0;reserved=0
-    if (run_dir/'jobs').exists():
-        for jp in (run_dir/'jobs').glob('*.json'):
-            for attempt in read(jp).get('attempts',[]):
-                if attempt['status'] in ('not_sent','reserved'): continue
-                calls+=1
-                cp=run_dir/'calls'/PathName(attempt['path'])/'record.json'
-                if cp.exists():elapsed+=read(cp)['elapsed_seconds']
-                else:reserved+=1
-    return calls,elapsed,reserved
+    calls = 0
+    elapsed = 0
+    reserved = 0
+    if (run_dir / 'jobs').exists():
+        for jp in (run_dir / 'jobs').glob('*.json'):
+            for attempt in read(jp).get('attempts', []):
+                if attempt['status'] in ('not_sent', 'reserved'):
+                    continue
+                calls += 1
+                cp = run_dir / 'calls' / PathName(attempt['path']) / 'record.json'
+                if cp.exists():
+                    elapsed += read(cp)['elapsed_seconds']
+                else:
+                    reserved += 1
+    return calls, elapsed, reserved
 
-def PathName(path):return path.rsplit('/',1)[-1]
+
+def PathName(path):
+    return path.rsplit('/', 1)[-1]
+
+
+# Shared call journals, cache reuse, and inference budgets.
+
 
 class Jobs:
-    def __init__(self,ctx):
-        self.ctx=ctx;self.transport=make_transport(ctx.settings)
-    def invoke(self,stage,task,content,spec,dependencies,images=(),retry=0):
-        ctx=self.ctx;thinking=task=='t2';spec={'task':task,**spec};body=body_for(ctx.settings,content,thinking)
-        data=wire(body)
-        if len(data)>ctx.settings.max_request_bytes:raise VisionError('요청 본문 byte 한도 초과. 미전송입니다.',kind='body')
-        key=digest({'task':task,'body_sha256':hashlib.sha256(data).hexdigest(),'dependencies':dependencies,'projection':ctx.config['projections'][stage],'parser_policy':PARSER_POLICY,'model':ctx.settings.model_profile()})
-        jp=ctx.directory/f'jobs/{key}.json'
-        journal=read(jp) if jp.exists() else {'job_key':key,'task':task,'attempts':[]}
-        def accept(entry,entry_ref):
-            parsed,status=validate_entry(ctx,entry,spec);ctx.reused_jobs+=1
-            return parsed,{'job_key':key,'source_run_id':entry['source_run_id'],'result':entry_ref},status
+    def __init__(self, ctx):
+        self.ctx = ctx
+        self.transport = make_transport(ctx.settings)
+
+    def invoke(
+        self, stage, task, content, spec, dependencies, images=(), retry=0, *, request_body=None
+    ):
+        ctx = self.ctx
+        spec = {'task': task, **spec}
+        body = (
+            request_body
+            if request_body is not None
+            else task_body(ctx.settings, content, task, spec)
+        )
+        thinking = bool(body.get('chat_template_kwargs', {}).get('enable_thinking', False))
+        data = wire(body)
+        if len(data) > ctx.settings.max_request_bytes:
+            raise VisionError('요청 본문 byte 한도 초과. 미전송입니다.', kind='body')
+        key = digest(
+            {
+                'task': task,
+                'body_sha256': hashlib.sha256(data).hexdigest(),
+                'dependencies': dependencies,
+                'projection': ctx.config['projections'][stage],
+                'parser_policy': getattr(ctx, 'parser_policy', PARSER_POLICY),
+                'model': ctx.settings.model_profile(),
+            }
+        )
+        jp = ctx.directory / f'jobs/{key}.json'
+        journal = read(jp) if jp.exists() else {'job_key': key, 'task': task, 'attempts': []}
+
+        def accept(entry, entry_ref):
+            parsed, status = validate_entry(ctx, entry, spec)
+            ctx.reused_jobs += 1
+            return (
+                parsed,
+                {'job_key': key, 'source_run_id': entry['source_run_id'], 'result': entry_ref},
+                status,
+            )
+
         # Reuse the same run's exact completed call even when force/from bypasses older cache.
         for attempt in reversed(journal['attempts']):
-            cp=safe(ctx.work,attempt['path']);rp=cp/'record.json'
+            cp = safe(ctx.work, attempt['path'])
+            rp = cp / 'record.json'
             if rp.exists():
-                record=read(rp)
-                if record['status'] in ('succeeded','budget_exhausted'):
-                    entry=make_entry(ctx,key,cp,record)
-                    entry_ref=save_entry(ctx,key,entry)
-                    return accept(entry,entry_ref)
-                if record['status']=='unknown' and not attempt.get('retry_authorization'):
+                record = read(rp)
+                if record['status'] in ('succeeded', 'budget_exhausted'):
+                    entry = make_entry(ctx, key, cp, record)
+                    entry_ref = save_entry(ctx, key, entry)
+                    return accept(entry, entry_ref)
+                if record['status'] == 'unknown' and not attempt.get('retry_authorization'):
                     raise InferencePaused('blocked_unknown')
-        pointer=safe(ctx.work,f'vision/cache/jobs/{key}/result.json')
+                if record['status'] == 'failed' and getattr(ctx, 'preserve_failures', False):
+                    raise InferenceJobFailed(
+                        f'{task}의 이전 확정 실패를 보존합니다.', kind='inference', diagnostic=cp
+                    )
+        pointer = safe(
+            ctx.work, f'{getattr(ctx,"cache_namespace","vision")}/cache/jobs/{key}/result.json'
+        )
         if ctx.allow_reuse(stage) and pointer.is_file():
             try:
-                entry_ref=read(pointer)['entry'];entry=read(ctx.hashes.check(ctx.work,entry_ref))
-                if entry['job_key']!=key:raise ValueError('key 오류')
-                return accept(entry,entry_ref)
-            except (VisionError,ValueError,KeyError,TypeError):pass
+                entry_ref = read(pointer)['entry']
+                entry = read(ctx.hashes.check(ctx.work, entry_ref))
+                if entry['job_key'] != key:
+                    raise ValueError('key 오류')
+                return accept(entry, entry_ref)
+            except (VisionError, ValueError, KeyError, TypeError):
+                pass
         if ctx.require_reuse(stage):
-            raise VisionError(f'--from에 필요한 {stage} 작업 캐시가 없습니다.',kind='upstream')
-        for attempt_index in range(retry+1):
+            raise VisionError(f'--from에 필요한 {stage} 작업 캐시가 없습니다.', kind='upstream')
+        for attempt_index in range(retry + 1):
             ctx.check_inputs()
-            calls,elapsed,reserved=budget_from_journals(ctx.directory)
-            budget=ctx.state['budget'];budget.update(http_calls=calls,http_seconds=elapsed,reserved_calls=reserved)
-            if calls+1>budget['max_calls'] or elapsed+(reserved+1)*ctx.settings.timeout_seconds>budget['max_http_seconds']:
-                ctx.save_state();raise InferencePaused('paused_budget')
-            call_id=uuid.uuid4().hex;cp=ctx.directory/f'calls/{call_id}'
-            url=ctx.settings.infer_base_url.rstrip('/')+'/infer?'+urlencode({'model':ctx.settings.qwen_model_id})
-            request={'url':url,'task':task,'job_key':key,'body_sha256':hashlib.sha256(data).hexdigest(),'body':body,'image_refs':list(images),'critical_refs':ctx.critical_refs,'timeout':ctx.settings.timeout_seconds,'max_response_bytes':ctx.settings.max_response_bytes,'attempt_index':len(journal['attempts']),'thinking':thinking,'spec':spec,'dependencies':dependencies}
-            write(cp/'request.json',request,immutable=True)
-            attempt={'call_id':call_id,'path':cp.relative_to(ctx.work).as_posix(),'status':'reserved'};journal['attempts'].append(attempt);write(jp,journal)
-            attempt['status']='sending';write(jp,journal);budget['reserved_calls']=reserved+1;ctx.save_state()
-            started=time.monotonic();response=None;error=None
-            ctx.invocation_calls+=1
-            def headers(status,values):
-                try:write(cp/'transport.json',{'http_status':status,'headers':values,'receive_started':True},immutable=True)
-                except OSError as exc:raise VisionError('transport 기록 저장 실패입니다.',kind='commit') from exc
+            calls, elapsed, reserved = budget_from_journals(ctx.directory)
+            budget = ctx.state['budget']
+            budget.update(http_calls=calls, http_seconds=elapsed, reserved_calls=reserved)
+            if (
+                calls + 1 > budget['max_calls']
+                or elapsed + (reserved + 1) * ctx.settings.timeout_seconds
+                > budget['max_http_seconds']
+            ):
+                ctx.save_state()
+                raise InferencePaused('paused_budget')
+            call_id = uuid.uuid4().hex
+            cp = ctx.directory / f'calls/{call_id}'
+            url = (
+                ctx.settings.infer_base_url.rstrip('/')
+                + '/infer?'
+                + urlencode({'model': ctx.settings.qwen_model_id})
+            )
+            request = {
+                'url': url,
+                'task': task,
+                'job_key': key,
+                'body_sha256': hashlib.sha256(data).hexdigest(),
+                'body': body,
+                'image_refs': list(images),
+                'critical_refs': ctx.critical_refs,
+                'timeout': ctx.settings.timeout_seconds,
+                'max_response_bytes': ctx.settings.max_response_bytes,
+                'attempt_index': len(journal['attempts']),
+                'thinking': thinking,
+                'spec': spec,
+                'dependencies': dependencies,
+            }
+            write(cp / 'request.json', request, immutable=True)
+            attempt = {
+                'call_id': call_id,
+                'path': cp.relative_to(ctx.work).as_posix(),
+                'status': 'reserved',
+            }
+            journal['attempts'].append(attempt)
+            write(jp, journal)
+            attempt['status'] = 'sending'
+            write(jp, journal)
+            budget['reserved_calls'] = reserved + 1
+            ctx.save_state()
+            started = time.monotonic()
+            response = None
+            error = None
+            ctx.invocation_calls += 1
+
+            def headers(status, values):
+                try:
+                    write(
+                        cp / 'transport.json',
+                        {'http_status': status, 'headers': values, 'receive_started': True},
+                        immutable=True,
+                    )
+                except OSError as exc:
+                    raise VisionError('transport 기록 저장 실패입니다.', kind='commit') from exc
+
             try:
-                response=self.transport.send(url,data,ctx.settings.timeout_seconds,ctx.settings.max_response_bytes,headers)
-                if len(response['body'])>ctx.settings.max_response_bytes: response['complete']=False;response['error']='body_too_large'
+                response = self.transport.send(
+                    url,
+                    data,
+                    ctx.settings.timeout_seconds,
+                    ctx.settings.max_response_bytes,
+                    headers,
+                )
+                if len(response['body']) > ctx.settings.max_response_bytes:
+                    response['complete'] = False
+                    response['error'] = 'body_too_large'
             except KeyboardInterrupt:
                 raise
-            except (OSError,urllib.error.URLError,http.client.HTTPException) as exc:
-                error=type(exc).__name__
-            elapsed=time.monotonic()-started
-            status='unknown';parsed=None;info={};http_status=response['status'] if response else None;complete=bool(response and response['complete'])
+            except (OSError, urllib.error.URLError, http.client.HTTPException) as exc:
+                error = type(exc).__name__
+            elapsed = time.monotonic() - started
+            status = 'unknown'
+            parsed = None
+            info = {}
+            http_status = response['status'] if response else None
+            complete = bool(response and response['complete'])
             if response is not None:
-                write(cp/('response.body' if complete else 'response.partial'),response['body'],immutable=True,raw=True)
+                write(
+                    cp / ('response.body' if complete else 'response.partial'),
+                    response['body'],
+                    immutable=True,
+                    raw=True,
+                )
             if complete:
-                try:parsed,status,info=parse_response(response['body'],http_status,spec,thinking)
-                except (ValueError,UnicodeError,TypeError,KeyError) as exc:status='failed';error=str(exc);info=response_metadata(response['body'])
-            else:error=error or response.get('error') if response else error
-            record={'call_id':call_id,'job_key':key,'status':status,'http_status':http_status,'body_sha':hashlib.sha256(response['body']).hexdigest() if response else None,'parsed':parsed,'error_code':error,'finish_reason':info.get('finish_reason'),'usage':info.get('usage'),'reasoning':info.get('reasoning'),'elapsed_seconds':elapsed,'response_complete':complete}
-            write(cp/'record.json',record,immutable=True);attempt['status']=status;write(jp,journal)
-            calls,total,reserved=budget_from_journals(ctx.directory);budget.update(http_calls=calls,http_seconds=total,reserved_calls=reserved);ctx.save_state()
-            if status=='unknown':
-                ctx.state['blocked_call_ids'].append(call_id);ctx.save_state();raise InferencePaused('blocked_unknown')
-            if status in ('succeeded','budget_exhausted'):
-                entry=make_entry(ctx,key,cp,record);entry_ref=save_entry(ctx,key,entry)
-                return parsed,{'job_key':key,'source_run_id':ctx.run_id,'result':entry_ref},status
+                try:
+                    parsed, status, info = getattr(ctx, 'parse_response', parse_response)(
+                        response['body'], http_status, spec, thinking
+                    )
+                except (ValueError, UnicodeError, TypeError, KeyError) as exc:
+                    status = 'failed'
+                    error = str(exc)
+                    info = response_metadata(response['body'])
+            else:
+                error = error or response.get('error') if response else error
+            record = {
+                'call_id': call_id,
+                'job_key': key,
+                'status': status,
+                'http_status': http_status,
+                'body_sha': hashlib.sha256(response['body']).hexdigest() if response else None,
+                'parsed': parsed,
+                'error_code': error,
+                'finish_reason': info.get('finish_reason'),
+                'usage': info.get('usage'),
+                'reasoning': info.get('reasoning'),
+                'elapsed_seconds': elapsed,
+                'response_complete': complete,
+            }
+            write(cp / 'record.json', record, immutable=True)
+            attempt['status'] = status
+            write(jp, journal)
+            calls, total, reserved = budget_from_journals(ctx.directory)
+            budget.update(http_calls=calls, http_seconds=total, reserved_calls=reserved)
+            ctx.save_state()
+            if status == 'unknown':
+                ctx.state['blocked_call_ids'].append(call_id)
+                ctx.save_state()
+                raise InferencePaused('blocked_unknown')
+            if status in ('succeeded', 'budget_exhausted'):
+                entry = make_entry(ctx, key, cp, record)
+                entry_ref = save_entry(ctx, key, entry)
+                return (
+                    parsed,
+                    {'job_key': key, 'source_run_id': ctx.run_id, 'result': entry_ref},
+                    status,
+                )
             # Only a completed format/finish failure in T1 permits the single retry.
-            if attempt_index<retry and http_status==200:continue
-            raise InferenceJobFailed(f'{task} 호출 확정 실패: {error}',kind='inference',diagnostic=cp)
+            if attempt_index < retry and http_status == 200:
+                continue
+            raise InferenceJobFailed(
+                f'{task} 호출 확정 실패: {error}', kind='inference', diagnostic=cp
+            )
 
-def make_entry(ctx,key,cp,record):
-    return {'job_key':key,'status':record['status'],'parsed':record['parsed'],'source_run_id':ctx.run_id,'call':ref(ctx.work,cp/'record.json'),'request':ref(ctx.work,cp/'request.json'),'response':ref(ctx.work,cp/'response.body')}
 
-def save_entry(ctx,key,entry):
+def make_entry(ctx, key, cp, record):
+    return {
+        'job_key': key,
+        'status': record['status'],
+        'parsed': record['parsed'],
+        'source_run_id': ctx.run_id,
+        'call': ref(ctx.work, cp / 'record.json'),
+        'request': ref(ctx.work, cp / 'request.json'),
+        'response': ref(ctx.work, cp / 'response.body'),
+    }
+
+
+def save_entry(ctx, key, entry):
     # Content-addressed immutable entries make recovery idempotent.
-    folder=ctx.work/f'vision/cache/jobs/{key}'
-    name=digest(entry)
-    path=folder/f'entries/{name[:32]}.json'
-    write(path,entry,immutable=True);entry_ref=ref(ctx.work,path)
-    write(folder/'result.json',{'entry':entry_ref})
+    folder = ctx.work / f'{getattr(ctx,"cache_namespace","vision")}/cache/jobs/{key}'
+    name = digest(entry)
+    path = folder / f'entries/{name[:32]}.json'
+    write(path, entry, immutable=True)
+    entry_ref = ref(ctx.work, path)
+    write(folder / 'result.json', {'entry': entry_ref})
     return entry_ref
 
 
 class SimpleRecoveryContext:
-    def __init__(self,work,run_id):
-        self.work=work;self.run_id=run_id
+    def __init__(self, work, run_id, namespace='vision'):
+        self.work = work
+        self.run_id = run_id
+        self.cache_namespace = namespace

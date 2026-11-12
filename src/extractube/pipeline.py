@@ -10,7 +10,7 @@ from extractube import infer, media, sentences, store
 from extractube.errors import PipelineError
 from extractube.infer import ASR_FORM, SERVER_DEFAULTS
 from extractube.sentences import POLICY_ID, SentenceError
-from extractube.settings import Settings, VisionSettings
+from extractube.settings import Settings, VisionSettings, ContentSettings
 
 Log = Callable[[str], None]
 
@@ -29,6 +29,21 @@ class VisionResult:
 
 
 @dataclass
+class ContentResult:
+    video_id: str
+    work_dir: Path
+    run_id: str
+    execution_status: str
+    quality_status: str
+    article_path: Path | None
+    html_path: Path | None
+    report_path: Path
+    inference_calls: int
+    reused_jobs: int
+    unresolved: int
+
+
+@dataclass
 class StageOutcome:
     reused: bool
     record: dict[str, Any]
@@ -44,6 +59,48 @@ class RunResult:
     fa_requests: int = 0
     audio_to_video_offset_seconds: float | None = None
     vision: VisionResult | None = None
+    content: ContentResult | None = None
+
+
+@dataclass
+class BatchItemResult:
+    url: str
+    video_id: str | None = None
+    result: RunResult | None = None
+    error: str | None = None
+    error_kind: str | None = None
+
+
+@dataclass
+class BatchResult:
+    through: str
+    items: list[BatchItemResult] = field(default_factory=list)
+
+    @property
+    def succeeded(self) -> int:
+        return sum(1 for item in self.items if item.error is None and item.result is not None)
+
+    @property
+    def failed(self) -> int:
+        return sum(1 for item in self.items if item.error is not None)
+
+
+def _work_duration_seconds(work: Path) -> float | None:
+    meta_path = store.metadata_path(work)
+    if meta_path.is_file():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            dur = meta.get("duration_seconds")
+            if not isinstance(dur, bool) and isinstance(dur, (int, float)) and dur > 0:
+                return float(dur)
+            wav_media = meta.get("results", {}).get("wav", {}).get("media", {})
+            sr = wav_media.get("sample_rate")
+            ns = wav_media.get("num_samples")
+            if isinstance(sr, int) and sr > 0 and isinstance(ns, int) and ns > 0:
+                return ns / sr
+        except (OSError, ValueError, TypeError):
+            pass
+    return None
 
 
 def run(
@@ -52,15 +109,19 @@ def run(
     *,
     through: str = "stage1",
     vision_settings: VisionSettings | None = None,
+    content_settings: ContentSettings | None = None,
     force: bool = False,
     from_stage: str | None = None,
+    adaptive_ceiling: bool = False,
     client: Any | None = None,
     video_id: str | None = None,
     fault: str | None = None,
     log: Log | None = print,
 ) -> RunResult:
-    if through not in ("stage1", "stage2"):
+    if through not in ("stage1", "stage2", "stage3"):
         raise PipelineError("through 값이 잘못되었습니다.", kind="usage")
+    if through == 'stage3' and content_settings is None:
+        raise PipelineError('Stage 3에는 tokenizer를 지정한 content_settings가 필요합니다.',kind='usage')
     if force and from_stage:
         raise PipelineError("--force와 --from은 함께 지정할 수 없습니다.", kind="usage")
     if from_stage is not None and from_stage not in store.STAGES:
@@ -130,22 +191,146 @@ def run(
     finally:
         lock.release()
 
-    if through == "stage2":
+    if through in ("stage2", "stage3"):
         from extractube.vision import run as run_visual
 
+        dur = _work_duration_seconds(work) if adaptive_ceiling else None
+        v_cfg = vision_settings or VisionSettings(infer_base_url=settings.infer_base_url)
+        c_cfg = content_settings
+        if dur is not None:
+            v_cfg = v_cfg.with_duration_ceiling(dur)
+            if c_cfg is not None:
+                c_cfg = c_cfg.with_duration_ceiling(dur)
         expected = {
             kind: store.identity(result.stages[kind].record)
             for kind in ("video", "sentences")
         }
         result.vision = run_visual(
             result.video_id,
-            vision_settings or VisionSettings(infer_base_url=settings.infer_base_url),
+            v_cfg,
             data_root=settings.data_root,
             force=force,
             expected_inputs=expected,
             log=log,
         )
+    if through == 'stage3' and result.vision.stage3_usable:
+        from extractube.content import run as run_content
+        visual_result = store.ref(work, work / 'vision/runs' / result.vision.run_id / 'result.json')
+        result.content = run_content(
+            result.video_id, c_cfg, data_root=settings.data_root,
+            vision_run_id=result.vision.run_id,
+            expected_inputs={'vision_run_id':result.vision.run_id,'vision_result':visual_result},log=log)
     return result
+
+
+def run_batch(
+    urls: list[str] | tuple[str, ...],
+    settings: Settings,
+    *,
+    through: str = "stage3",
+    vision_settings: VisionSettings | None = None,
+    content_settings: ContentSettings | None = None,
+    force: bool = False,
+    adaptive_ceiling: bool = True,
+    continue_on_error: bool = True,
+    client: Any | None = None,
+    counter: Any | None = None,
+    log: Log | None = print,
+) -> BatchResult:
+    if through not in ("stage1", "stage2", "stage3"):
+        raise PipelineError("through 값이 잘못되었습니다.", kind="usage")
+    if through == "stage3" and content_settings is None:
+        raise PipelineError("Stage 3에는 tokenizer를 지정한 content_settings가 필요합니다.", kind="usage")
+    clean_urls = [u.strip() for u in urls if isinstance(u, str) and u.strip()]
+    if not clean_urls:
+        raise PipelineError("처리할 URL이 없습니다.", kind="usage")
+    shared_counter = counter
+    if through == "stage3" and shared_counter is None:
+        from extractube.content_plan import TokenCounter
+        shared_counter = TokenCounter(content_settings.tokenizer_path)
+
+    batch = BatchResult(through=through)
+    # Phase 1: complete Stage 1 across all URLs while ASR + FA containers remain warm.
+    for idx, url in enumerate(clean_urls, 1):
+        if log is not None:
+            log(f"[batch stage1 {idx}/{len(clean_urls)}] {url}")
+        try:
+            r1 = run(
+                url,
+                settings,
+                through="stage1",
+                force=force,
+                client=client,
+                log=log,
+            )
+            batch.items.append(BatchItemResult(url=url, video_id=r1.video_id, result=r1))
+        except PipelineError as exc:
+            if not continue_on_error:
+                raise
+            batch.items.append(BatchItemResult(url=url, error=str(exc), error_kind=exc.kind))
+
+    if through == "stage1":
+        return batch
+
+    # Phase 2: run Stage 2 (+ Stage 3) across ready items on the warm VLM container.
+    from extractube.vision import run as run_visual
+    from extractube.content import run as run_content
+
+    ready = [item for item in batch.items if item.error is None and item.result is not None]
+    for idx, item in enumerate(ready, 1):
+        r1 = item.result
+        assert r1 is not None
+        if log is not None:
+            log(f"[batch {through} {idx}/{len(ready)}] {r1.video_id}")
+        try:
+            dur = _work_duration_seconds(r1.work_dir) if adaptive_ceiling else None
+            v_cfg = vision_settings or VisionSettings(infer_base_url=settings.infer_base_url)
+            c_cfg = content_settings
+            if dur is not None:
+                v_cfg = v_cfg.with_duration_ceiling(dur)
+                if c_cfg is not None:
+                    c_cfg = c_cfg.with_duration_ceiling(dur)
+            expected = {
+                kind: store.identity(r1.stages[kind].record)
+                for kind in ("video", "sentences")
+            }
+            r1.vision = run_visual(
+                r1.video_id,
+                v_cfg,
+                data_root=settings.data_root,
+                force=force,
+                expected_inputs=expected,
+                log=log,
+            )
+            if not r1.vision.stage3_usable:
+                item.error = f"stage2_{r1.vision.execution_status}"
+                item.error_kind = r1.vision.execution_status
+                if not continue_on_error:
+                    raise PipelineError(f"Stage 2 미완료: {r1.vision.execution_status}", kind=r1.vision.execution_status)
+                continue
+            if through == "stage3":
+                assert c_cfg is not None
+                visual_result = store.ref(r1.work_dir, r1.work_dir / "vision/runs" / r1.vision.run_id / "result.json")
+                r1.content = run_content(
+                    r1.video_id,
+                    c_cfg,
+                    data_root=settings.data_root,
+                    vision_run_id=r1.vision.run_id,
+                    expected_inputs={"vision_run_id": r1.vision.run_id, "vision_result": visual_result},
+                    counter=shared_counter,
+                    log=log,
+                )
+                if r1.content.html_path is None:
+                    item.error = f"stage3_{r1.content.execution_status}"
+                    item.error_kind = r1.content.execution_status
+                    if not continue_on_error:
+                        raise PipelineError(f"Stage 3 미완료: {r1.content.execution_status}", kind=r1.content.execution_status)
+        except PipelineError as exc:
+            if not continue_on_error:
+                raise
+            item.error = str(exc)
+            item.error_kind = exc.kind
+    return batch
 
 
 def _emit(log: Log | None, stage: str, *, reused: bool, elapsed: float) -> None:

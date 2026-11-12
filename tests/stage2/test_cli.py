@@ -38,7 +38,23 @@ class CliTests(unittest.TestCase):
             with adapters(fake), patch.object(pipeline, '_reusable', return_value=True), patch('extractube.media.resolve_video_id', return_value=VIDEO_ID), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 result = cli.main(['run', 'https://example.test', '--through', 'stage2', '--data-root', str(root)])
             self.assertEqual(result, 0)
-            self.assertEqual(len(fake.calls), 7)
+            self.assertEqual(len(fake.calls), 4)
+            self.assertTrue((work / 'vision/current.json').is_file())
+
+    def test_batch_cli_stage_orders_and_adaptive_ceiling(self):
+        from extractube import pipeline
+        from extractube.settings import adaptive_ceiling_seconds
+        self.assertEqual(adaptive_ceiling_seconds(1200), 1080.0)
+        self.assertEqual(adaptive_ceiling_seconds(4000), 2700.0)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            work = seed(root)
+            urls_file = root / 'urls.txt'
+            urls_file.write_text('# comment\nhttps://example.test/v1\n', encoding='utf-8')
+            fake = FakeTransport()
+            with adapters(fake), patch.object(pipeline, '_reusable', return_value=True), patch('extractube.media.resolve_video_id', return_value=VIDEO_ID), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = cli.main(['batch', '--urls-file', str(urls_file), '--through', 'stage2', '--data-root', str(root)])
+            self.assertEqual(rc, 0)
             self.assertTrue((work / 'vision/current.json').is_file())
 
     def test_invalid_settings_exit_two(self):
