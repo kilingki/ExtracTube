@@ -38,6 +38,9 @@ Thumbs.db
 # Local-only files
 local/
 
+# Internal test and experiment documentation
+/tests/**/README.md
+
 # Stage work files
 data/
 
