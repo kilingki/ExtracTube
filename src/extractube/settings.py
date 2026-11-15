@@ -106,7 +106,7 @@ class ContentSettings:
     cache_epoch: str = 'content-v1'
     tokenizer_path: str = ''
     timeout_seconds: float = 300
-    max_request_bytes: int = 4194304
+    max_request_bytes: int = 67108864
     max_response_bytes: int = 16777216
     max_inference_calls: int = 100
     max_http_seconds: float = 7200
@@ -116,6 +116,8 @@ class ContentSettings:
     safety_tokens: int = 1024
     max_auto_repairs: int = 2
     max_review_repairs: int = 2
+    visual_selection_policy: str = 'r1.editorial_visual_selection.e02.reverse_compaction.v1'
+    visual_selection_max_pixels: int = 262144
 
     def __post_init__(self):
         from .errors import ContentError
@@ -150,6 +152,13 @@ class ContentSettings:
             raise ContentError('max_review_repairs는 0~2여야 합니다.', kind='usage')
         if not isinstance(self.tokenizer_path, str):
             raise ContentError('tokenizer_path는 문자열이어야 합니다.', kind='usage')
+        if self.visual_selection_policy not in (
+            'none',
+            'r1.editorial_visual_selection.e02.reverse_compaction.v1',
+        ):
+            raise ContentError('visual_selection_policy가 유효하지 않습니다.', kind='usage')
+        if type(self.visual_selection_max_pixels) is not int or self.visual_selection_max_pixels <= 0:
+            raise ContentError('visual_selection_max_pixels는 양의 정수여야 합니다.', kind='usage')
 
     def model_profile(self):
         return {

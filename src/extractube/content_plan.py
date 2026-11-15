@@ -1,6 +1,11 @@
 """Source-preserving plans and bounded, CPU-only request token accounting."""
 
+import base64
+import io
+import json
+import math
 from pathlib import Path
+from PIL import Image
 from .errors import ContentError
 from .store import digest, sha, wire
 
@@ -179,16 +184,44 @@ def generation_plan(bundle, outline):
     }
 
 
+def _smart_resize(height, width, factor, min_pixels, max_pixels):
+    if min(height, width) <= 0 or max(height, width) / min(height, width) > 200:
+        raise ContentError('이미지 크기가 유효하지 않습니다.', kind='input')
+    h_bar = round(height / factor) * factor
+    w_bar = round(width / factor) * factor
+    if h_bar * w_bar > max_pixels:
+        beta = math.sqrt((height * width) / max_pixels)
+        h_bar = max(factor, math.floor(height / beta / factor) * factor)
+        w_bar = max(factor, math.floor(width / beta / factor) * factor)
+    elif h_bar * w_bar < min_pixels:
+        beta = math.sqrt(min_pixels / (height * width))
+        h_bar = math.ceil(height * beta / factor) * factor
+        w_bar = math.ceil(width * beta / factor) * factor
+    return h_bar, w_bar
+
+
+def _image_size_from_part(part):
+    url = (part.get('image_url') or {}).get('url', '')
+    if not isinstance(url, str) or ',' not in url or ';base64' not in url.split(',', 1)[0]:
+        raise ContentError('지원되지 않는 image_url 형식입니다.', kind='input')
+    raw = base64.b64decode(url.split(',', 1)[1], validate=True)
+    with Image.open(io.BytesIO(raw)) as im:
+        return im.size
+
+
 class TokenCounter:
     """Local tokenizer only; never imports a model or manages its service."""
 
-    def __init__(self, path):
+    def __init__(self, path, *, max_pixels=262144):
         if not path or not Path(path).is_dir():
             raise ContentError('로컬 --tokenizer-path가 필요합니다.', kind='usage')
+        if type(max_pixels) is not int or max_pixels <= 0:
+            raise ContentError('max_pixels는 양의 정수여야 합니다.', kind='usage')
         from transformers import AutoTokenizer
         import transformers
 
         root = Path(path).resolve()
+        self.max_pixels = max_pixels
         self.tokenizer = AutoTokenizer.from_pretrained(
             str(root), local_files_only=True, trust_remote_code=False
         )
@@ -204,22 +237,82 @@ class TokenCounter:
             'transformers': transformers.__version__,
             'files': {n: sha(root / n) for n in names if (root / n).is_file()},
             'template': digest(self.tokenizer.chat_template),
+            'max_pixels': max_pixels,
         }
+        preproc = root / 'preprocessor_config.json'
+        self._image_cfg = None
+        if preproc.is_file():
+            cfg = json.loads(preproc.read_text(encoding='utf-8'))
+            size = cfg.get('size') or {}
+            self._image_cfg = {
+                'patch_size': int(cfg.get('patch_size', 16)),
+                'merge_size': int(cfg.get('merge_size', 2)),
+                'min_pixels': int(size.get('shortest_edge', cfg.get('min_pixels', 65536))),
+                'max_pixels': min(
+                    max_pixels,
+                    int(size.get('longest_edge', cfg.get('max_pixels', max_pixels))),
+                ),
+            }
+            self.identity['files']['preprocessor_config.json'] = sha(preproc)
+            self.identity['image_processor'] = {
+                **self._image_cfg,
+                'processor_class': cfg.get('image_processor_type'),
+            }
         if not self.tokenizer.chat_template:
             raise ContentError('tokenizer chat template이 없습니다.', kind='usage')
 
     def count(self, body):
-        encoded = self.tokenizer.apply_chat_template(
+        image_sizes = []
+        for message in body['messages']:
+            content = message.get('content')
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get('type') == 'image_url':
+                        image_sizes.append(_image_size_from_part(part))
+        if not image_sizes:
+            encoded = self.tokenizer.apply_chat_template(
+                body['messages'],
+                tokenize=True,
+                add_generation_prompt=True,
+                enable_thinking=False,
+                return_dict=True,
+            )
+            return len(encoded['input_ids'])
+        if self._image_cfg is None:
+            raise ContentError('multimodal 입력 계산에는 preprocessor_config.json이 필요합니다.', kind='usage')
+        text = self.tokenizer.apply_chat_template(
             body['messages'],
-            tokenize=True,
+            tokenize=False,
             add_generation_prompt=True,
             enable_thinking=False,
-            return_dict=True,
         )
-        return len(encoded['input_ids'])
+        image_token = getattr(self.tokenizer, 'image_token', None) or '<|image_pad|>'
+        if text.count(image_token) != len(image_sizes):
+            raise ContentError('chat template image token 수가 이미지 수와 다릅니다.', kind='validation')
+        cfg = self._image_cfg
+        factor = cfg['patch_size'] * cfg['merge_size']
+        pieces = text.split(image_token)
+        out = [pieces[0]]
+        for (w, h), tail in zip(image_sizes, pieces[1:]):
+            rh, rw = _smart_resize(h, w, factor, cfg['min_pixels'], cfg['max_pixels'])
+            grid_tokens = (rh // cfg['patch_size']) * (rw // cfg['patch_size']) // (cfg['merge_size'] ** 2)
+            out.append(image_token * grid_tokens)
+            out.append(tail)
+        return len(self.tokenizer.encode(''.join(out), add_special_tokens=False))
 
 
 def check_budget(body, settings, counter):
+    has_images = any(
+        isinstance(m.get('content'), list)
+        and any(isinstance(p, dict) and p.get('type') == 'image_url' for p in m['content'])
+        for m in body['messages']
+    )
+    if (
+        has_images
+        and hasattr(counter, 'max_pixels')
+        and counter.max_pixels != settings.visual_selection_max_pixels
+    ):
+        raise ContentError('TokenCounter max_pixels 설정이 일치하지 않습니다.', kind='usage')
     count = counter.count(body)
     if type(count) is not int or count < 0:
         raise ContentError('정확한 입력 토큰 수가 필요합니다.', kind='input')

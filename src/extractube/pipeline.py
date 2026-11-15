@@ -116,6 +116,7 @@ def run(
     client: Any | None = None,
     video_id: str | None = None,
     fault: str | None = None,
+    counter: Any | None = None,
     log: Log | None = print,
 ) -> RunResult:
     if through not in ("stage1", "stage2", "stage3"):
@@ -217,9 +218,14 @@ def run(
         from extractube.content import run as run_content
         visual_result = store.ref(work, work / 'vision/runs' / result.vision.run_id / 'result.json')
         result.content = run_content(
-            result.video_id, c_cfg, data_root=settings.data_root,
+            result.video_id,
+            c_cfg,
+            data_root=settings.data_root,
             vision_run_id=result.vision.run_id,
-            expected_inputs={'vision_run_id':result.vision.run_id,'vision_result':visual_result},log=log)
+            expected_inputs={'vision_run_id': result.vision.run_id, 'vision_result': visual_result},
+            counter=counter,
+            log=log,
+        )
     return result
 
 
@@ -247,7 +253,11 @@ def run_batch(
     shared_counter = counter
     if through == "stage3" and shared_counter is None:
         from extractube.content_plan import TokenCounter
-        shared_counter = TokenCounter(content_settings.tokenizer_path)
+
+        shared_counter = TokenCounter(
+            content_settings.tokenizer_path,
+            max_pixels=content_settings.visual_selection_max_pixels,
+        )
 
     batch = BatchResult(through=through)
     # Phase 1: complete Stage 1 across all URLs while ASR + FA containers remain warm.

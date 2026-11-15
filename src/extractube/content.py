@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import copy
 import math
 import uuid
-from . import article, content_plan, infer, prompts, store, writing
+from . import article, content_plan, content_selection, infer, prompts, store, writing
 from .errors import ContentError, InferencePaused, InferenceJobFailed
 from .settings import ContentSettings
 from .media import validate_video_id
@@ -18,6 +18,7 @@ COMPLETE = ('complete', 'complete_with_warnings', 'empty')
 CODES = (
     'content.py',
     'content_plan.py',
+    'content_selection.py',
     'writing.py',
     'article.py',
     'infer.py',
@@ -36,6 +37,7 @@ def parse_response(body, status, spec, thinking):
         'content.outline': content_plan.validate_outline,
         'content.write': writing.validate,
         'content.repair': writing.validate_repair,
+        'content.visual_select': content_selection.validate_selection,
     }
     try:
         raw = store.loads(body)
@@ -61,6 +63,18 @@ def parse_response(body, status, spec, thinking):
 
 def snapshot(settings, counter):
     codes = {name: store.sha(Path(__file__).parent / name) for name in CODES}
+    projections = {
+        key: {'code': codes, 'tokenizer': counter.identity, 'policy': POLICY}
+        for key in ('outline', 'write', 'repair')
+    }
+    projections['visual_select'] = {
+        'code': codes,
+        'tokenizer': counter.identity,
+        'policy': settings.visual_selection_policy,
+        'schema_version': content_selection.SCHEMA_VERSION,
+        'prompt_sha256': store.digest(prompts.CONTENT_VISUAL_SELECT),
+        'max_pixels': settings.visual_selection_max_pixels,
+    }
     return {
         'schema_version': 'extractube.content.config.v1',
         'policy': POLICY,
@@ -68,10 +82,7 @@ def snapshot(settings, counter):
         'code_sha256': codes,
         'tokenizer': counter.identity,
         'parser_policy': PARSER,
-        'projections': {
-            key: {'code': codes, 'tokenizer': counter.identity, 'policy': POLICY}
-            for key in ('outline', 'write', 'repair')
-        },
+        'projections': projections,
     }
 
 
@@ -159,13 +170,13 @@ class Context:
             if store.sha(Path(__file__).parent / name) != expected:
                 raise ContentError('실행 코드가 변경되었습니다.', kind='input')
 
-    def invoke(self, stage, task, body, spec, dependencies):
+    def invoke(self, stage, task, body, spec, dependencies, *, images=()):
         measurement = content_plan.check_budget(body, self.settings, self.counter)
         spec = {**spec, 'token_plan': measurement}
         if self.log:
             self.log(f'[content.{stage}] input_tokens={measurement["input_tokens"]}')
         value, job_ref, status = self.jobs.invoke(
-            stage, task, None, spec, dependencies, request_body=body
+            stage, task, None, spec, dependencies, images=images, request_body=body
         )
         return {'value': value, 'job_ref': job_ref, 'spec': {'task': task, **spec}}
 
@@ -193,11 +204,14 @@ def load_settings(video_id, data_root, run_id):
     validate_video_id(video_id)
     if not store.RUN.fullmatch(run_id):
         raise ContentError('run ID 오류', kind='usage')
-    return ContentSettings(
-        **store.read(store.safe(Path(data_root) / video_id, f'content/runs/{run_id}/config.json'))[
+    loaded = dict(
+        store.read(store.safe(Path(data_root) / video_id, f'content/runs/{run_id}/config.json'))[
             'settings'
         ]
     )
+    loaded.setdefault('visual_selection_policy', 'none')
+    loaded.setdefault('visual_selection_max_pixels', 262144)
+    return ContentSettings(**loaded)
 
 
 def _outline_body(settings, sentences, start, end):
@@ -454,8 +468,125 @@ def _prepare_writing(ctx, bundle, outline):
     return plan, max_repairs
 
 
+def _verify_visual_record(ctx, paragraph, record):
+    """Validate saved selection against immutable job results before resume publishes it."""
+    calls = []
+    for call in record['calls']:
+        entry = store.read(ctx.hashes.check(ctx.work, call['job_ref']['result']))
+        value, status = infer.validate_entry(ctx, entry, call['spec'])
+        if status != 'succeeded' or value != call['value']:
+            raise ContentError('시각 선정 호출 결과가 변경되었습니다.', kind='validation')
+        calls.append({**call, 'value': value})
+    replayed = content_selection.replay_paragraph(
+        paragraph, calls, ctx.settings.visual_selection_policy
+    )
+    for key in ('paragraph_id', 'policy', 'before_assets', 'kept', 'decisions', 'rounds'):
+        if record.get(key) != replayed[key]:
+            raise ContentError(f'시각 선정 replay 불일치: {key}', kind='validation')
+
+
+def _select_visuals(ctx, built, bundle):
+    """Apply configured Stage 3 editorial visual selection before artifact publication."""
+    all_paragraphs = [p for section in built['sections'] for p in section['paragraphs']]
+    before_ids = [f['asset_id'] for p in all_paragraphs for f in p['figures']]
+    if ctx.settings.visual_selection_policy == 'none':
+        return built, {
+            'policy': 'none',
+            'before_assets': len(before_ids),
+            'after_assets': len(before_ids),
+            'omitted_assets': 0,
+            'uncertain_assets': 0,
+            'selection_calls': 0,
+            'local_selection_calls': 0,
+            'reused_selection_calls': 0,
+            'selection_http_seconds': 0.0,
+        }
+
+    (ctx.directory / 'visual_selection').mkdir(exist_ok=True)
+    paragraph_records = []
+    for paragraph in all_paragraphs:
+        pid = paragraph['paragraph_id']
+        p_ident = content_selection.paragraph_identity(ctx.settings, ctx.counter, paragraph, bundle)
+        sel_path = ctx.directory / 'visual_selection' / f'{pid}.json'
+        if sel_path.exists():
+            rec = store.read(sel_path)
+            if rec.get('identity') != p_ident:
+                raise ContentError(f'시각 선정 identity가 변경되었습니다: {pid}', kind='input')
+            _verify_visual_record(ctx, paragraph, rec)
+        else:
+            rec = content_selection.select_paragraph(ctx, paragraph, bundle)
+            rec = {'identity': p_ident, **rec}
+            store.write(sel_path, rec, immutable=True)
+        paragraph_records.append(rec)
+
+    updated = content_selection.apply_selection(built, paragraph_records)
+    call_costs = {}
+    reused_calls = 0
+    omitted_count = 0
+    uncertain_count = 0
+    for rec in paragraph_records:
+        for decision in rec['decisions']:
+            if decision['decision'] == 'omit':
+                omitted_count += 1
+            elif decision['decision'] == 'uncertain':
+                uncertain_count += 1
+        for call in rec['calls']:
+            key = call['job_ref']['job_key']
+            if key in call_costs:
+                continue
+            elapsed = 0.0
+            jp = ctx.directory / 'jobs' / f'{key}.json'
+            if jp.exists():
+                for att in store.read(jp).get('attempts', []):
+                    if att['status'] in ('not_sent', 'reserved'):
+                        continue
+                    cp = ctx.work / att['path'] / 'record.json'
+                    if cp.exists():
+                        elapsed += float(store.read(cp).get('elapsed_seconds', 0.0))
+            if call['job_ref']['source_run_id'] != ctx.directory.name:
+                reused_calls += 1
+            call_costs[key] = {
+                'elapsed_seconds': elapsed,
+                'source_run_id': call['job_ref']['source_run_id'],
+            }
+
+    after_ids = [f['asset_id'] for f in updated['asset_placements']]
+    selection_seconds = sum(v['elapsed_seconds'] for v in call_costs.values())
+    local_calls = sum(1 for v in call_costs.values() if v['source_run_id'] == ctx.directory.name)
+    summary = {
+        'policy': ctx.settings.visual_selection_policy,
+        'before_assets': len(before_ids),
+        'after_assets': len(after_ids),
+        'omitted_assets': omitted_count,
+        'uncertain_assets': uncertain_count,
+        'selection_calls': len(call_costs),
+        'local_selection_calls': local_calls,
+        'reused_selection_calls': reused_calls,
+        'selection_http_seconds': selection_seconds,
+    }
+    doc = {
+        'schema_version': content_selection.SCHEMA_VERSION,
+        **summary,
+        'before_asset_ids': before_ids,
+        'after_asset_ids': after_ids,
+        'paragraphs': [
+            {
+                'paragraph_id': rec['paragraph_id'],
+                'before_assets': rec['before_assets'],
+                'kept': rec['kept'],
+                'rounds': rec['rounds'],
+                'decisions': rec['decisions'],
+                'call_keys': [c['job_ref']['job_key'] for c in rec['calls']],
+            }
+            for rec in paragraph_records
+        ],
+    }
+    store.write(ctx.directory / 'visual_selection.json', doc, immutable=True)
+    return updated, summary
+
+
 def _publish_article(ctx, bundle, outline, plan, drafts, review):
-    """Assemble, review, and verify artifacts before publishing the pointer."""
+    """Assemble, review, select visuals, and verify artifacts before publishing the pointer."""
     work = ctx.work
     directory = ctx.directory
     state = ctx.state
@@ -467,6 +598,7 @@ def _publish_article(ctx, bundle, outline, plan, drafts, review):
     )
     built = article.assemble(bundle, outline, plan, drafts, title)
     built, reviews = _review(ctx, built, bundle, review)
+    built, visual_summary = _select_visuals(ctx, built, bundle)
     article.validate(built, bundle, plan)
     unresolved = sum(len(s['unresolved']) for s in built['sections'])
     quality = 'revise' if unresolved or reviews else 'unreviewed'
@@ -497,6 +629,7 @@ def _publish_article(ctx, bundle, outline, plan, drafts, review):
         'input_digest': input_doc['input_digest'],
         'code_policy': POLICY,
         'review_candidates': len(reviews),
+        'visual_selection': visual_summary,
     }
     store.write(directory / 'article.json', built, immutable=True)
     store.write(directory / 'article.html', article.render(built, work), raw=True, immutable=True)
@@ -558,7 +691,9 @@ def run(
         input_doc['input_digest'] = store.digest(
             {k: v for k, v in input_doc.items() if k != 'input_digest'}
         )
-        counter = counter or content_plan.TokenCounter(settings.tokenizer_path)
+        counter = counter or content_plan.TokenCounter(
+            settings.tokenizer_path, max_pixels=settings.visual_selection_max_pixels
+        )
         config = snapshot(settings, counter)
         directory = None
         if resume_run_id:
@@ -604,6 +739,7 @@ def run(
                     old['execution_status'] in ('pending', 'running', 'paused_budget')
                     and store.read(path.parent / 'input.json')['input_digest']
                     == input_doc['input_digest']
+                    and store.read(path.parent / 'config.json') == config
                 ):
                     raise ContentError(
                         f'미완결 run을 --resume {path.parent.name}으로 재개하십시오.',
@@ -809,8 +945,49 @@ def verify_locked(work, video_id, run_id=None, _seen=None):
                 row['ticket']['acceptance'],
                 base_sha256=base_sha,
             )
-    if expected != built:
-        raise ValueError('article_not_derived_from_drafts')
+    vs_policy = config['settings'].get('visual_selection_policy', 'none')
+    if vs_policy == 'none':
+        if expected != built:
+            raise ValueError('article_not_derived_from_drafts')
+    else:
+        vs_doc = store.read(directory / 'visual_selection.json')
+        if vs_doc.get('policy') != vs_policy:
+            raise ValueError('visual_selection_policy_mismatch')
+        sel_records = []
+        for paragraph in [p for s in expected['sections'] for p in s['paragraphs']]:
+            pid = paragraph['paragraph_id']
+            sel_rec = store.read(directory / 'visual_selection' / f'{pid}.json')
+            if sel_rec.get('policy') != vs_policy:
+                raise ValueError('visual_selection_paragraph_policy_mismatch')
+            before_ids = [f['asset_id'] for f in paragraph['figures']]
+            if sel_rec['before_assets'] != before_ids:
+                raise ValueError('visual_selection_before_mismatch')
+            if len(paragraph['figures']) < 2:
+                if sel_rec['kept'] != before_ids or sel_rec['calls'] or sel_rec['decisions']:
+                    raise ValueError('visual_selection_trivial_mismatch')
+            else:
+                verified_calls = [{**c, 'value': check_job(c)} for c in sel_rec['calls']]
+                replayed = content_selection.replay_paragraph(paragraph, verified_calls, vs_policy)
+                for key in ('policy', 'before_assets', 'kept', 'decisions', 'rounds'):
+                    if sel_rec.get(key) != replayed[key]:
+                        raise ValueError(f'visual_selection_replay_mismatch:{key}')
+            sel_records.append(sel_rec)
+        expected = content_selection.apply_selection(expected, sel_records)
+        if expected != built:
+            raise ValueError('article_not_derived_from_drafts')
+        if [
+            f
+            for section in built['sections']
+            for paragraph in section['paragraphs']
+            for f in paragraph['figures']
+        ] != built['asset_placements']:
+            raise ValueError('asset_placements_mismatch')
+        before_all = [aid for rec in sel_records for aid in rec['before_assets']]
+        if (
+            vs_doc.get('before_asset_ids') != before_all
+            or vs_doc.get('after_asset_ids') != [f['asset_id'] for f in built['asset_placements']]
+        ):
+            raise ValueError('visual_selection_summary_mismatch')
     article.validate(built, bundle, plan)
     if config['code_sha256']['article.py'] == store.sha(Path(__file__).with_name('article.py')):
         if article.render(built, work) != (directory / 'article.html').read_bytes():
