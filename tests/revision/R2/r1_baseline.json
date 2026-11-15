@@ -1,0 +1,136 @@
+{
+  "date": "2026-11-15",
+  "decision": "R1 E02 selected as working baseline for R2",
+  "status": "baseline_selected_R2_review_started_not_final_quality_acceptance",
+  "baseline": "tests/revision/R1/runs/20261111_e02",
+  "baseline_manifest_sha256": "e164e1184b1a68544bddc6f94ad0d01be68409d7dbfdee8d99d15a95efce9384",
+  "baseline_report_sha256": "567dbf1a7da6317882ddfbfadad4adc13cfe3d2a971e05aabda946da4807e7f6",
+  "figures_before": 1123.0,
+  "figures_after": 452.0,
+  "articles": [
+    {
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/01/article.json",
+      "article_sha256": "35ff80e9e843a0ff1eb689f3298092f32c110b3ef2f2c076de6e4f25331a621d",
+      "original_article_sha256": "5a3bbc9c77d66fdfe3b8920d84a252e9330d4276c9f7e04db941d532934973d7",
+      "source_sha256": "cbf4ce6e15eaaf3d878e658f796f224c9c193e43c4802075bf1f4001f9fb96df"
+    },
+    {
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/02/article.json",
+      "article_sha256": "acf39b8a0ede1ef16b072483c49bd412f1778583f5a2d6431c62bf443a1b08fb",
+      "original_article_sha256": "45b8cafbdd1832622854aa40d63762da2c8115ecbccb2c03a158fe39641bb388",
+      "source_sha256": "513ebf53055122d5d9a1f97217cb69a70023fe9fe8862b0f48836c80304906ef"
+    },
+    {
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/03/article.json",
+      "article_sha256": "90159f70fd55ef5aaba8d6de4185e970a82092925bf73eaba06f1a7ee6839112",
+      "original_article_sha256": "b4348c609be53c2c4f035bbc957c3f0fadb40f5eb8370a3049397fc7b5c92e22",
+      "source_sha256": "f70dda015509a74832b9cbc2814ce26dac88636beaa712e36d554ef166b30a36"
+    },
+    {
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/04/article.json",
+      "article_sha256": "4ad1cc676009980df2a8ebdbb7829b16adf4590b0b05e3aa70ef7e9fcc93783b",
+      "original_article_sha256": "f62a66147f3e76458f8ead6e6ab588aad29204e9724be4bc953f795844909515",
+      "source_sha256": "a64eebd4d159acb40f4bfa263dfe5c4c3072f522156e3c58380b6b5820847fc6"
+    },
+    {
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/05/article.json",
+      "article_sha256": "2e16b80a047aab7291e40026490e0283d6e4682e497ef08da42f32676c591e87",
+      "original_article_sha256": "31f59aa3d23300bf3ce5847540e60e8e197bc2d005f48630fa28808f5786c893",
+      "source_sha256": "13fd944d14d88d1ffcb9c09d755679816694539e3293d2fad929c3028f194e3f"
+    },
+    {
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/06/article.json",
+      "article_sha256": "d2af1e592a0d3ed68958925e3dbf97b4402372f089c21b3e56d71a8e97b17a2e",
+      "original_article_sha256": "f120ada7c73a609c0e2a122ab66deafbfc5353af2c16de1ad2f765c5fc86190d",
+      "source_sha256": "4aaa161854a2de93f986e0525b65271d665ac7d4b5fe0957a4d0a5272b9e2c14"
+    },
+    {
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/07/article.json",
+      "article_sha256": "75d2216291942fa32801f914e1f17f5dc1b7b1d59b3648adb72926115246c2f9",
+      "original_article_sha256": "cc359495b95f06958ae3401710b37f048c937e351e10ec0bc3cb411892cb1c66",
+      "source_sha256": "36bf48a46d36d8ff660190bb314dc236726f5e1f832e2b50893a8ecdc0e948b1"
+    },
+    {
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/08/article.json",
+      "article_sha256": "5bbe9e802037a61ba875949679bdabce9e291389cf25b61743c09b8966378a80",
+      "original_article_sha256": "6716a55f738954a3c9ca5dbc76611bfcb49a7789b6a8324f20c2540a0cba3264",
+      "source_sha256": "07fde9ad0f878e0570575620f9bef589a2eadac06023873930e165a17ffca5bc"
+    },
+    {
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/09/article.json",
+      "article_sha256": "15fd69d58d7ba7761fa3b4662e840c9e79bee4200343d2d84bce2baf57065915",
+      "original_article_sha256": "fcbb5a3ffd53906f294cb06b6dc3b5b9fa81523c43392464cb7f0592882722b0",
+      "source_sha256": "2c74fc1fe6652bb28239ed6e3ecf962eadeee8dc242a6a27d1f49e62a5189ecf"
+    },
+    {
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "article": "tests/revision/R1/runs/20261111_e02/comparison/10/article.json",
+      "article_sha256": "c6ebf616f53888abc468ef1e1f215ab0275b44c3bee05dc5210ee7fdc0077a8e",
+      "original_article_sha256": "9f3584cec371ca0dce4d175bc48b7e0de86667523c9b68316dbf21fca297b22d",
+      "source_sha256": "b931d79ee808e11550dc245ce8ebf211e8e7678592ef0396feecbd44bd5014d9"
+    }
+  ],
+  "selection_reason": "E02 completed all ten with the strongest observed compression; E03/E04 were partial failed candidates and E05 produced no successful selection. Known quality caveats remain.",
+  "known_issues": [
+    "D10 u0001-p001: omitted pts4908904 transpose row/column relation.",
+    "09 u0028-p000: final A image omits noise B and correction C.",
+    "05 u0016-p000: unrelated average-sales metric remains.",
+    "02 u0047-p000: unnecessary UV/specification slides remain.",
+    "01 u0037-p000: promotional banner relevance unresolved."
+  ],
+  "existing_R2": {
+    "run": "tests/revision/R2/runs/20261112_e01",
+    "calls": 7,
+    "http_seconds": 151.384294,
+    "verdict": "revise",
+    "findings": [
+      "02a: global source indices 0/1/2 out of assigned range; repeated copy/paste prose; actual paste menu described as copy.",
+      "02b: registration instructions expanded into umbrella product claims, with no selection review flags.",
+      "10a: repeated head-splitting prose and incorrect merged visual_evidence unit references."
+    ],
+    "review_scope": "Three explanation JSONs and source ranges; three targeted original images. No full image/browser review."
+  },
+  "budget": {
+    "series_call_cap": 16,
+    "series_http_seconds_cap": 4800,
+    "prior_calls": 7,
+    "remaining_call_slots": 9,
+    "next_development_call_cap": 7,
+    "confirmation_call_reserve": 2,
+    "automatic_expansion": false
+  },
+  "progress": {
+    "R1": "E02 chosen for downstream work with explicit residual issues.",
+    "R2": "Existing E01 reviewed as revise; structural validator repaired; E02 input/prompt preparation next.",
+    "new_inference_calls": 0
+  },
+  "next_candidate": {
+    "name": "R2 E02",
+    "focus": "Source-faithful explanation without per-image repetition or unrelated topic expansion.",
+    "before_inference": [
+      "Freeze sample-level assets; any corrections are derived R2 inputs, not a generalized R1 fix.",
+      "Treat inherited body/captions as unverified; use indexed sources and actual images.",
+      "Freeze corrected prompt/schema/code/input identity and enforce campaign-wide remaining budget.",
+      "Use new run and dated output names; preserve existing E01 artifacts."
+    ]
+  }
+}

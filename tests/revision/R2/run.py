@@ -104,7 +104,7 @@ def explanation_schema(allowed_asset_ids=None):
         }
     }
 
-def validate_explanation(value, allowed_asset_ids):
+def validate_explanation(value, allowed_asset_ids, allowed_source_indices=None):
     import jsonschema
     schema = explanation_schema(allowed_asset_ids)
     try:
@@ -113,6 +113,9 @@ def validate_explanation(value, allowed_asset_ids):
         raise ValueError(str(e))
     seen_assets = set()
     for unit in value.get('explanation_units', []):
+        if allowed_source_indices is not None:
+            if not unit['source_indices'] or not set(unit['source_indices']) <= set(allowed_source_indices):
+                raise ValueError('source_indices outside assigned source range')
         for p in unit.get('paragraphs', []):
             for aid in p.get('asset_ids', []):
                 if aid not in allowed_asset_ids:
@@ -120,7 +123,38 @@ def validate_explanation(value, allowed_asset_ids):
                 if aid in seen_assets:
                     raise ValueError(f'Duplicate asset_id {aid} in placement')
                 seen_assets.add(aid)
+    if seen_assets != set(allowed_asset_ids):
+        raise ValueError('Missing asset placement; do not silently attach unplaced images')
+    units = value['explanation_units']
+    for evidence in value['visual_evidence']:
+        idx = evidence['unit_index']
+        if not 0 <= idx < len(units):
+            raise ValueError('visual_evidence unit_index out of range')
+        placed = {aid for p in units[idx]['paragraphs'] for aid in p['asset_ids']}
+        if evidence['asset_id'] not in placed:
+            raise ValueError('visual_evidence does not reference its assigned unit')
+    for review in value['selection_review_needed']:
+        if review['asset_id'] not in allowed_asset_ids:
+            raise ValueError('selection_review_needed references unknown asset')
+    if allowed_source_indices is not None:
+        for item in value['unresolved']:
+            if not set(item['source_indices']) <= set(allowed_source_indices):
+                raise ValueError('unresolved source_indices outside assigned source range')
     return value
+
+
+def merge_explanations(parts):
+    """Rebase batch-local evidence references without changing historical outputs."""
+    merged = {key: [] for key in (
+        'explanation_units', 'visual_evidence', 'selection_review_needed', 'unresolved')}
+    for part in parts:
+        offset = len(merged['explanation_units'])
+        merged['explanation_units'].extend(copy.deepcopy(part['explanation_units']))
+        for row in part['visual_evidence']:
+            merged['visual_evidence'].append({**copy.deepcopy(row), 'unit_index': row['unit_index'] + offset})
+        merged['selection_review_needed'].extend(copy.deepcopy(part['selection_review_needed']))
+        merged['unresolved'].extend(copy.deepcopy(part['unresolved']))
+    return merged
 
 class TokenService:
     def __init__(self):
@@ -256,6 +290,12 @@ def image_path(entry, f):
     return p
 
 def assemble_slice(article_data, target_pid, explanation):
+    targets = [p for s in article_data['sections'] for p in s['paragraphs']
+               if p['paragraph_id'] == target_pid]
+    if len(targets) != 1:
+        raise ValueError('Expected exactly one target paragraph')
+    validate_explanation(explanation, {f['asset_id'] for f in targets[0].get('figures', [])},
+                         targets[0].get('source_indices', []))
     new_art = copy.deepcopy(article_data)
     for section in new_art['sections']:
         new_ps = []
@@ -264,23 +304,16 @@ def assemble_slice(article_data, target_pid, explanation):
                 new_ps.append(p)
                 continue
             fig_map = {f['asset_id']: f for f in p.get('figures', [])}
-            all_target_aids = set(fig_map.keys())
-            placed_aids = set()
             units = explanation.get('explanation_units', [])
             for u_idx, u in enumerate(units):
                 for p_idx, para in enumerate(u.get('paragraphs', [])):
                     p_figs = [fig_map[aid] for aid in para.get('asset_ids', []) if aid in fig_map]
-                    placed_aids.update(para.get('asset_ids', []))
                     new_ps.append({
                         'paragraph_id': f"{target_pid}-r2-{u_idx}-{p_idx}",
                         'text': para['text'],
                         'source_indices': u.get('source_indices', p.get('source_indices', [])),
                         'figures': p_figs
                     })
-            # If any figures were not placed, attach them to the last paragraph to ensure zero figure loss
-            unplaced = [fig_map[aid] for aid in all_target_aids if aid not in placed_aids]
-            if unplaced and new_ps:
-                new_ps[-1]['figures'].extend(unplaced)
         section['paragraphs'] = new_ps
     new_art['asset_placements'] = [f for s in new_art['sections'] for p in s['paragraphs'] for f in p.get('figures', [])]
     return new_art
@@ -404,6 +437,8 @@ def get_dev_slices():
 
 def run_dev(out_dir):
     out = Path(out_dir)
+    if any((out / name).exists() for name in ('policy.json', 'calls', 'dev_summary.json')):
+        raise ValueError('Existing run is immutable; use a new output directory')
     out.mkdir(parents=True, exist_ok=True)
     manifest_r1 = read(ROOT / 'tests/revision/R1/runs/20261111_e02/manifest.json')
     entries = manifest_r1['entries']
@@ -435,10 +470,7 @@ def run_dev(out_dir):
 
             print(f"\n>>> Running R2 for {s_name} ({entry['video']} / {pid}) with {len(figs)} figures...", flush=True)
 
-            combined_units = []
-            combined_evidence = []
-            combined_review = []
-            combined_unresolved = []
+            parts = []
 
             for c_idx, c in enumerate(spec['calls']):
                 sub_figs = [figs[i] for i in c['fig_indices']]
@@ -447,21 +479,14 @@ def run_dev(out_dir):
 
                 body = make_body(entry, p_target, sub_figs, sub_sources_text, allowed_aids)
                 val, key = call(out, body, counter)
-                res = validate_explanation(json.loads(val['choices'][0]['message']['content']), allowed_aids)
+                res = validate_explanation(json.loads(val['choices'][0]['message']['content']), allowed_aids,
+                                           c['sources'])
+                parts.append(res)
 
                 print(f"  Call {c_idx+1}/{len(spec['calls'])} [{key[:8]}]: {len(res['explanation_units'])} units returned", flush=True)
 
-                combined_units.extend(res.get('explanation_units', []))
-                combined_evidence.extend(res.get('visual_evidence', []))
-                combined_review.extend(res.get('selection_review_needed', []))
-                combined_unresolved.extend(res.get('unresolved', []))
 
-            combined_explanation = {
-                'explanation_units': combined_units,
-                'visual_evidence': combined_evidence,
-                'selection_review_needed': combined_review,
-                'unresolved': combined_unresolved
-            }
+            combined_explanation = merge_explanations(parts)
 
             write(out / f'{s_name}_explanation.json', combined_explanation)
 
@@ -525,7 +550,7 @@ def update_output_index(r2_results):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--out', type=Path, default=ROOT / 'tests/revision/R2/runs/20261112_e01')
+    ap.add_argument('--out', type=Path, required=True, help='New run directory; historical outputs cannot be overwritten')
     args = ap.parse_args()
     run_dev(args.out.resolve())
 

@@ -2,7 +2,7 @@ import copy
 import unittest
 
 # Import after run.py is defined
-from run import validate_explanation, explanation_schema, assemble_slice, metrics
+from run import validate_explanation, explanation_schema, assemble_slice, metrics, merge_explanations
 
 class ExplanationSchemaTests(unittest.TestCase):
     def test_valid_explanation_structure(self):
@@ -122,6 +122,54 @@ class ExplanationSchemaTests(unittest.TestCase):
         after_m = metrics(new_art)
         self.assertEqual(after_m['figures'], 2)
         self.assertEqual(after_m['zero_text_intervals'], 0)
+
+class ProvenanceRegressionTests(unittest.TestCase):
+    def part(self, aid='a', source=66):
+        return {
+            'explanation_units': [{'explanation_purpose': '설명', 'source_indices': [source],
+                                   'paragraphs': [{'text': '본문', 'asset_ids': [aid]}]}],
+            'visual_evidence': [{'asset_id': aid, 'observation': '관찰', 'unit_index': 0}],
+            'selection_review_needed': [], 'unresolved': [],
+        }
+
+    def test_batch_local_source_number_cannot_replace_global_source_index(self):
+        with self.assertRaisesRegex(ValueError, 'source_indices'):
+            validate_explanation(self.part(source=0), {'a'}, {66, 67})
+
+    def test_unplaced_image_is_rejected_before_assembly(self):
+        with self.assertRaisesRegex(ValueError, 'Missing asset'):
+            validate_explanation(self.part(), {'a', 'b'}, {66})
+        article = {'sections': [{'paragraphs': [{'paragraph_id': 'p', 'source_indices': [66],
+                    'figures': [{'asset_id': 'a'}, {'asset_id': 'b'}]}]}]}
+        before = copy.deepcopy(article)
+        with self.assertRaisesRegex(ValueError, 'Missing asset'):
+            assemble_slice(article, 'p', self.part())
+        self.assertEqual(article, before)
+
+    def test_evidence_must_point_to_unit_that_uses_image(self):
+        combined = merge_explanations([self.part('a'), self.part('b', 67)])
+        combined['visual_evidence'][1]['unit_index'] = 0
+        with self.assertRaisesRegex(ValueError, 'assigned unit'):
+            validate_explanation(combined, {'a', 'b'}, {66, 67})
+
+    def test_merge_rebases_evidence_without_mutating_raw_parts(self):
+        parts = [self.part('a'), self.part('b', 67)]
+        original = copy.deepcopy(parts)
+        merged = merge_explanations(parts)
+        self.assertEqual([r['unit_index'] for r in merged['visual_evidence']], [0, 1])
+        validate_explanation(merged, {'a', 'b'}, {66, 67})
+        self.assertEqual(parts, original)
+
+    def test_review_and_unresolved_cannot_reference_unassigned_inputs(self):
+        bad = self.part()
+        bad['selection_review_needed'] = [{'asset_id': 'outside', 'reason': '사유'}]
+        with self.assertRaisesRegex(ValueError, 'unknown asset'):
+            validate_explanation(bad, {'a'}, {66})
+        bad = self.part()
+        bad['unresolved'] = [{'description': '확인 필요', 'source_indices': [0]}]
+        with self.assertRaisesRegex(ValueError, 'unresolved source_indices'):
+            validate_explanation(bad, {'a'}, {66})
+
 
 if __name__ == '__main__':
     unittest.main()
