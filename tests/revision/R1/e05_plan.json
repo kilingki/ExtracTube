@@ -1,0 +1,993 @@
+{
+  "status": "revised_policy_v2_resumed_after_v1_first_p_halt",
+  "experiment": "R1 E05",
+  "policy": "r1.editorial_visual_selection.e05.requirement_witness_minimum_set.v2",
+  "prior_halted_candidate": {
+    "policy": "r1.editorial_visual_selection.e05.requirement_witness_minimum_set.v1",
+    "run_dir": "tests/revision/R1/runs/20261114_e05_dev",
+    "status": "halted_at_first_p_response_selection_unassessed",
+    "error": "ui_state selected_and_items missing expected_value in r2",
+    "used_calls": 2,
+    "used_http_seconds": 87.07
+  },
+  "specification": "local/revision/r1_execution.md sections 21, 22, 23, and 24",
+  "last_experiment": true,
+  "primary_hypothesis": "Source-first bounded visual requirements, focused two-image observations, deterministic minimum-set selection, and answer-blind rereading of every original can preserve essential relations while removing redundant and irrelevant images.",
+  "baseline": "tests/revision/R1/runs/20261111_e02",
+  "baseline_manifest_sha256": "e164e1184b1a68544bddc6f94ad0d01be68409d7dbfdee8d99d15a95efce9384",
+  "baseline_report_sha256": "567dbf1a7da6317882ddfbfadad4adc13cfe3d2a971e05aabda946da4807e7f6",
+  "test_inputs_sha256": "ba7f51fd43a1a2ea825ab2f2d68b7c80a05603a8caec7a3f4be45f7ad25da8e7",
+  "prior_e04_plan_sha256": "23f8fec3f07f4527240a5e01679e0ef3eaf3367cfc3a0240c90e0d6b7cb193d3",
+  "development": [
+    {
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "paragraph_id": "u0020-p000",
+      "figure_count": 10,
+      "asset_ids": [
+        "7EJ-xotXiSE:v0:pts8794786",
+        "7EJ-xotXiSE:v0:pts8839831",
+        "7EJ-xotXiSE:v0:pts8899891",
+        "7EJ-xotXiSE:v0:pts8914906",
+        "7EJ-xotXiSE:v0:pts9289280",
+        "7EJ-xotXiSE:v0:pts9424415",
+        "7EJ-xotXiSE:v0:pts9454445",
+        "7EJ-xotXiSE:v0:pts9469460",
+        "7EJ-xotXiSE:v0:pts9514505",
+        "7EJ-xotXiSE:v0:pts9604595"
+      ],
+      "source_indices": [
+        99,
+        100,
+        101,
+        102,
+        103
+      ],
+      "P": 1,
+      "O": 5,
+      "V": 5
+    },
+    {
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "paragraph_id": "u0023-p001",
+      "figure_count": 4,
+      "asset_ids": [
+        "Fw-8hZhnH3Q:v0:pts13717504",
+        "Fw-8hZhnH3Q:v0:pts13825024",
+        "Fw-8hZhnH3Q:v0:pts13909504",
+        "Fw-8hZhnH3Q:v0:pts14024704"
+      ],
+      "source_indices": [
+        190,
+        191,
+        192,
+        193,
+        194
+      ],
+      "P": 1,
+      "O": 2,
+      "V": 2
+    },
+    {
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "paragraph_id": "u0016-p000",
+      "figure_count": 3,
+      "asset_ids": [
+        "H2WN130OzLg:v0:pts11321696",
+        "H2WN130OzLg:v0:pts11730112",
+        "H2WN130OzLg:v0:pts11849712"
+      ],
+      "source_indices": [
+        231,
+        232,
+        233,
+        234,
+        235,
+        236,
+        237,
+        238,
+        239,
+        240,
+        241,
+        242,
+        243,
+        244,
+        245
+      ],
+      "P": 1,
+      "O": 2,
+      "V": 2
+    },
+    {
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "paragraph_id": "u0028-p000",
+      "figure_count": 6,
+      "asset_ids": [
+        "wFikV0Y7NIk:v0:pts58438380",
+        "wFikV0Y7NIk:v0:pts58767709",
+        "wFikV0Y7NIk:v0:pts58947889",
+        "wFikV0Y7NIk:v0:pts58977919",
+        "wFikV0Y7NIk:v0:pts59158099",
+        "wFikV0Y7NIk:v0:pts59697638"
+      ],
+      "source_indices": [
+        184,
+        185,
+        186
+      ],
+      "P": 1,
+      "O": 3,
+      "V": 3
+    },
+    {
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "paragraph_id": "u0001-p000",
+      "figure_count": 9,
+      "asset_ids": [
+        "dgGhsYSVzKc:v0:pts1248247",
+        "dgGhsYSVzKc:v0:pts1458457",
+        "dgGhsYSVzKc:v0:pts1848847",
+        "dgGhsYSVzKc:v0:pts1938937",
+        "dgGhsYSVzKc:v0:pts2268266",
+        "dgGhsYSVzKc:v0:pts2778776",
+        "dgGhsYSVzKc:v0:pts2958956",
+        "dgGhsYSVzKc:v0:pts3318315",
+        "dgGhsYSVzKc:v0:pts3738735"
+      ],
+      "source_indices": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "P": 1,
+      "O": 5,
+      "V": 5
+    },
+    {
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "paragraph_id": "u0001-p001",
+      "figure_count": 8,
+      "asset_ids": [
+        "dgGhsYSVzKc:v0:pts3858855",
+        "dgGhsYSVzKc:v0:pts4008004",
+        "dgGhsYSVzKc:v0:pts4698694",
+        "dgGhsYSVzKc:v0:pts4788784",
+        "dgGhsYSVzKc:v0:pts4908904",
+        "dgGhsYSVzKc:v0:pts5028023",
+        "dgGhsYSVzKc:v0:pts5268263",
+        "dgGhsYSVzKc:v0:pts5418413"
+      ],
+      "source_indices": [
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21
+      ],
+      "P": 1,
+      "O": 4,
+      "V": 4
+    },
+    {
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "paragraph_id": "u0004-p000",
+      "figure_count": 9,
+      "asset_ids": [
+        "dgGhsYSVzKc:v0:pts13398385",
+        "dgGhsYSVzKc:v0:pts13608595",
+        "dgGhsYSVzKc:v0:pts13668655",
+        "dgGhsYSVzKc:v0:pts13728715",
+        "dgGhsYSVzKc:v0:pts14088074",
+        "dgGhsYSVzKc:v0:pts14388374",
+        "dgGhsYSVzKc:v0:pts15078063",
+        "dgGhsYSVzKc:v0:pts15528513",
+        "dgGhsYSVzKc:v0:pts15978963"
+      ],
+      "source_indices": [
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54
+      ],
+      "P": 1,
+      "O": 5,
+      "V": 5
+    }
+  ],
+  "holdout": [
+    {
+      "id": "01-u0034-p000",
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "paragraph_id": "u0034-p000",
+      "stratum": "multi",
+      "original_frames": 17,
+      "asset_ids": [
+        "CvuE-jyg-N8:v0:pts71630559",
+        "CvuE-jyg-N8:v0:pts71825754",
+        "CvuE-jyg-N8:v0:pts71840769",
+        "CvuE-jyg-N8:v0:pts71855784",
+        "CvuE-jyg-N8:v0:pts71959888",
+        "CvuE-jyg-N8:v0:pts72064993",
+        "CvuE-jyg-N8:v0:pts72125053",
+        "CvuE-jyg-N8:v0:pts72170098",
+        "CvuE-jyg-N8:v0:pts72215143",
+        "CvuE-jyg-N8:v0:pts72275203",
+        "CvuE-jyg-N8:v0:pts72335263",
+        "CvuE-jyg-N8:v0:pts72350278",
+        "CvuE-jyg-N8:v0:pts72440368",
+        "CvuE-jyg-N8:v0:pts72575503",
+        "CvuE-jyg-N8:v0:pts72710638",
+        "CvuE-jyg-N8:v0:pts72904832",
+        "CvuE-jyg-N8:v0:pts73160087"
+      ],
+      "source_indices": [
+        560,
+        561,
+        562,
+        563,
+        564,
+        565,
+        566,
+        567,
+        568,
+        569,
+        570,
+        571,
+        572,
+        573,
+        574,
+        575
+      ]
+    },
+    {
+      "id": "01-u0036-p000",
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "paragraph_id": "u0036-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "CvuE-jyg-N8:v0:pts77585508"
+      ],
+      "source_indices": [
+        594,
+        595,
+        596
+      ]
+    },
+    {
+      "id": "02-u0012-p000",
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "paragraph_id": "u0012-p000",
+      "stratum": "multi",
+      "original_frames": 3,
+      "asset_ids": [
+        "7EJ-xotXiSE:v0:pts5674669",
+        "7EJ-xotXiSE:v0:pts5959954",
+        "7EJ-xotXiSE:v0:pts6004999"
+      ],
+      "source_indices": [
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65
+      ]
+    },
+    {
+      "id": "02-u0016-p000",
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "paragraph_id": "u0016-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "7EJ-xotXiSE:v0:pts7444437"
+      ],
+      "source_indices": [
+        84,
+        85,
+        86
+      ]
+    },
+    {
+      "id": "03-u0010-p001",
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "paragraph_id": "u0010-p001",
+      "stratum": "multi",
+      "original_frames": 5,
+      "asset_ids": [
+        "Fw-8hZhnH3Q:v0:pts5311488",
+        "Fw-8hZhnH3Q:v0:pts5419008",
+        "Fw-8hZhnH3Q:v0:pts5449728",
+        "Fw-8hZhnH3Q:v0:pts5495808",
+        "Fw-8hZhnH3Q:v0:pts5664768"
+      ],
+      "source_indices": [
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76
+      ]
+    },
+    {
+      "id": "03-u0020-p000",
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "paragraph_id": "u0020-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "Fw-8hZhnH3Q:v0:pts11582464"
+      ],
+      "source_indices": [
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166
+      ]
+    },
+    {
+      "id": "04-u0021-p000",
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "paragraph_id": "u0021-p000",
+      "stratum": "multi",
+      "original_frames": 2,
+      "asset_ids": [
+        "bjDkfjSmXVo:v0:pts17735718",
+        "bjDkfjSmXVo:v0:pts17765748"
+      ],
+      "source_indices": [
+        168,
+        169,
+        170,
+        171,
+        172
+      ]
+    },
+    {
+      "id": "04-u0007-p000",
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "paragraph_id": "u0007-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "bjDkfjSmXVo:v0:pts3396393"
+      ],
+      "source_indices": [
+        27,
+        28,
+        29,
+        30
+      ]
+    },
+    {
+      "id": "05-u0014-p000",
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "paragraph_id": "u0014-p000",
+      "stratum": "single_fallback_missing_other_stratum",
+      "original_frames": 1,
+      "asset_ids": [
+        "H2WN130OzLg:v0:pts10081008"
+      ],
+      "source_indices": [
+        197,
+        198,
+        199,
+        200,
+        201,
+        202,
+        203,
+        204,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        213
+      ]
+    },
+    {
+      "id": "05-u0010-p000",
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "paragraph_id": "u0010-p000",
+      "stratum": "single_fallback_missing_other_stratum",
+      "original_frames": 1,
+      "asset_ids": [
+        "H2WN130OzLg:v0:pts7529120"
+      ],
+      "source_indices": [
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156
+      ]
+    },
+    {
+      "id": "06-u0003-p000",
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "paragraph_id": "u0003-p000",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 8,
+      "asset_ids": [
+        "iEMuJiVY9Oc:v0:pts1236480",
+        "iEMuJiVY9Oc:v0:pts1466880",
+        "iEMuJiVY9Oc:v0:pts1589760",
+        "iEMuJiVY9Oc:v0:pts1638912",
+        "iEMuJiVY9Oc:v0:pts1692672",
+        "iEMuJiVY9Oc:v0:pts1930752",
+        "iEMuJiVY9Oc:v0:pts1961472",
+        "iEMuJiVY9Oc:v0:pts2030592"
+      ],
+      "source_indices": [
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38
+      ]
+    },
+    {
+      "id": "06-u0006-p000",
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "paragraph_id": "u0006-p000",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 4,
+      "asset_ids": [
+        "iEMuJiVY9Oc:v0:pts4819456",
+        "iEMuJiVY9Oc:v0:pts4896256",
+        "iEMuJiVY9Oc:v0:pts5065216",
+        "iEMuJiVY9Oc:v0:pts5142016"
+      ],
+      "source_indices": [
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94
+      ]
+    },
+    {
+      "id": "07-u0023-p000",
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "paragraph_id": "u0023-p000",
+      "stratum": "multi",
+      "original_frames": 2,
+      "asset_ids": [
+        "hGVL9XRU9IQ:v0:pts17265248",
+        "hGVL9XRU9IQ:v0:pts17355338"
+      ],
+      "source_indices": [
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174
+      ]
+    },
+    {
+      "id": "07-u0007-p000",
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "paragraph_id": "u0007-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "hGVL9XRU9IQ:v0:pts6069063"
+      ],
+      "source_indices": [
+        55,
+        56,
+        57,
+        58
+      ]
+    },
+    {
+      "id": "08-u0049-p000",
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "paragraph_id": "u0049-p000",
+      "stratum": "multi",
+      "original_frames": 4,
+      "asset_ids": [
+        "iVelddb1qQ4:v0:pts33336303",
+        "iVelddb1qQ4:v0:pts33411378",
+        "iVelddb1qQ4:v0:pts33486453",
+        "iVelddb1qQ4:v0:pts33696663"
+      ],
+      "source_indices": [
+        253,
+        254,
+        255,
+        256,
+        257
+      ]
+    },
+    {
+      "id": "08-u0047-p000",
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "paragraph_id": "u0047-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "iVelddb1qQ4:v0:pts31585554"
+      ],
+      "source_indices": [
+        240,
+        241,
+        242,
+        243
+      ]
+    },
+    {
+      "id": "09-u0028-p001",
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "paragraph_id": "u0028-p001",
+      "stratum": "multi",
+      "original_frames": 5,
+      "asset_ids": [
+        "wFikV0Y7NIk:v0:pts59937878",
+        "wFikV0Y7NIk:v0:pts60598538",
+        "wFikV0Y7NIk:v0:pts60747687",
+        "wFikV0Y7NIk:v0:pts60807747",
+        "wFikV0Y7NIk:v0:pts61138077"
+      ],
+      "source_indices": [
+        187,
+        188,
+        189
+      ]
+    },
+    {
+      "id": "09-u0025-p001",
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "paragraph_id": "u0025-p001",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "wFikV0Y7NIk:v0:pts49047999"
+      ],
+      "source_indices": [
+        155,
+        156
+      ]
+    },
+    {
+      "id": "10-u0005-p001",
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "paragraph_id": "u0005-p001",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 10,
+      "asset_ids": [
+        "dgGhsYSVzKc:v0:pts20985965",
+        "dgGhsYSVzKc:v0:pts21226205",
+        "dgGhsYSVzKc:v0:pts21286265",
+        "dgGhsYSVzKc:v0:pts21346325",
+        "dgGhsYSVzKc:v0:pts21466445",
+        "dgGhsYSVzKc:v0:pts21855834",
+        "dgGhsYSVzKc:v0:pts22246224",
+        "dgGhsYSVzKc:v0:pts22875853",
+        "dgGhsYSVzKc:v0:pts22935913",
+        "dgGhsYSVzKc:v0:pts22995973"
+      ],
+      "source_indices": [
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79
+      ]
+    },
+    {
+      "id": "10-u0009-p000",
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "paragraph_id": "u0009-p000",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 4,
+      "asset_ids": [
+        "dgGhsYSVzKc:v0:pts38042004",
+        "dgGhsYSVzKc:v0:pts38132094",
+        "dgGhsYSVzKc:v0:pts38821783",
+        "dgGhsYSVzKc:v0:pts38971933"
+      ],
+      "source_indices": [
+        134,
+        135,
+        136,
+        137,
+        138
+      ]
+    }
+  ],
+  "population": [
+    {
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "excluded": [
+        "u0033-p000",
+        "u0036-p001",
+        "u0037-p000"
+      ],
+      "eligible": {
+        "single": 2,
+        "multi": 10
+      }
+    },
+    {
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "excluded": [
+        "u0001-p000",
+        "u0013-p000",
+        "u0015-p000",
+        "u0020-p000",
+        "u0035-p000",
+        "u0038-p000",
+        "u0047-p000"
+      ],
+      "eligible": {
+        "single": 6,
+        "multi": 45
+      }
+    },
+    {
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "excluded": [
+        "u0023-p000",
+        "u0023-p001"
+      ],
+      "eligible": {
+        "single": 14,
+        "multi": 18
+      }
+    },
+    {
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "excluded": [
+        "u0018-p001",
+        "u0035-p001"
+      ],
+      "eligible": {
+        "single": 14,
+        "multi": 34
+      }
+    },
+    {
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "excluded": [
+        "u0011-p000",
+        "u0016-p000"
+      ],
+      "eligible": {
+        "single": 8,
+        "multi": 0
+      }
+    },
+    {
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "excluded": [
+        "u0008-p000",
+        "u0013-p000"
+      ],
+      "eligible": {
+        "single": 0,
+        "multi": 24
+      }
+    },
+    {
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "excluded": [
+        "u0008-p000",
+        "u0011-p000"
+      ],
+      "eligible": {
+        "single": 4,
+        "multi": 8
+      }
+    },
+    {
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "excluded": [
+        "u0052-p000",
+        "u0056-p000"
+      ],
+      "eligible": {
+        "single": 4,
+        "multi": 7
+      }
+    },
+    {
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "excluded": [
+        "u0008-p000",
+        "u0028-p000"
+      ],
+      "eligible": {
+        "single": 6,
+        "multi": 37
+      }
+    },
+    {
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "excluded": [
+        "u0001-p000",
+        "u0001-p001",
+        "u0004-p000",
+        "u0005-p000",
+        "u0010-p000",
+        "u0011-p001"
+      ],
+      "eligible": {
+        "single": 0,
+        "multi": 14
+      }
+    }
+  ],
+  "holdout_actual": {
+    "paragraphs": 20,
+    "original_frames": 73,
+    "sheets": 29
+  },
+  "holdout_identity_note": "Same unopened 20 paragraphs / 73 original images / 29 sheets as E03/E04. Inherit input/sample identity only. Antigravity must not perform detailed semantic holdout review or tune against it. Codex owns final content review.",
+  "stages": {
+    "P": {
+      "images_max": 0,
+      "calls_per_image_paragraph": 1,
+      "requirements_max": 8,
+      "source_quotes": "exact continuous substrings",
+      "output": "Bounded machine-checkable predicates and separate answer-free reading questions, exact source spans, visual necessity."
+    },
+    "O": {
+      "images_max": 2,
+      "all_originals": true,
+      "source_context": true,
+      "prior_decisions": false,
+      "output": "Per-image question readings, short localized witnesses, present/absent/uncertain and source-grounded missing-requirement suspicions. No keep/omit decisions."
+    },
+    "selection": {
+      "inference_calls": 0,
+      "input": "Frozen P and readable complete O witnesses",
+      "objective": [
+        "minimum cardinality",
+        "minimum symmetric difference from stored E02 keep set",
+        "lexicographically smallest sorted (video_seconds,asset_id) list"
+      ],
+      "coverage": "Every predicate of a requirement must hold in the same witness image; different requirements may use different final images. Required temporal relationships must also hold.",
+      "replacement_chains": false
+    },
+    "V": {
+      "images_max": 2,
+      "all_originals": true,
+      "source_context": false,
+      "expected_answers": false,
+      "prior_readings": false,
+      "prior_decisions": false,
+      "seed": "R1-E05-20261114-verify-order-v1",
+      "output": "Raw typed readings to answer neutral questions and common scene/metric questions; no required/covered/keep/omit decisions."
+    }
+  },
+  "model": {
+    "profile": "qwen-vlm",
+    "body_model": "qwen3.8-27b",
+    "max_pixels": 262144,
+    "temperature": 0,
+    "thinking": false,
+    "max_input_tokens": 12000,
+    "max_output_tokens": 4096,
+    "context_safety_tokens": 1024,
+    "model_or_resolution_change": false
+  },
+  "budget": {
+    "development_and_preparation_calls": 64,
+    "max_development_versions": 2,
+    "candidate_versions_note": "Includes halted initial v1 (tests/revision/R1/runs/20261114_e05_dev, selection unassessed) plus 1 integrated correction v2. No 3rd candidate or E06.",
+    "development_P": 7,
+    "development_O": 26,
+    "development_V": 26,
+    "development_calls": 59,
+    "development_original_frames": 49,
+    "development_zoom_views": 24,
+    "warmup_calls_max": 2,
+    "warmup_note": "1 already used in v1 (20261114_e05_dev) + up to 1 additional allowed if needed; both count in cumulative campaign budget.",
+    "full_ten_call_upper": 1564,
+    "total_calls": 1650,
+    "http_seconds": 18000,
+    "timeout_seconds": 300,
+    "concurrency": 1,
+    "extra_retry_or_judge_calls": 0,
+    "holdout_review_paragraphs": 20,
+    "holdout_original_frames": 120,
+    "holdout_sheets": 32,
+    "holdout_zoom_views": 24
+  },
+  "request_upper_by_video": [
+    {
+      "number": 1,
+      "P": 15,
+      "O": 65,
+      "V": 65,
+      "total": 145
+    },
+    {
+      "number": 2,
+      "P": 57,
+      "O": 139,
+      "V": 139,
+      "total": 335
+    },
+    {
+      "number": 3,
+      "P": 34,
+      "O": 51,
+      "V": 51,
+      "total": 136
+    },
+    {
+      "number": 4,
+      "P": 50,
+      "O": 89,
+      "V": 89,
+      "total": 228
+    },
+    {
+      "number": 5,
+      "P": 10,
+      "O": 11,
+      "V": 11,
+      "total": 32
+    },
+    {
+      "number": 6,
+      "P": 26,
+      "O": 63,
+      "V": 63,
+      "total": 152
+    },
+    {
+      "number": 7,
+      "P": 14,
+      "O": 24,
+      "V": 24,
+      "total": 62
+    },
+    {
+      "number": 8,
+      "P": 13,
+      "O": 18,
+      "V": 18,
+      "total": 49
+    },
+    {
+      "number": 9,
+      "P": 45,
+      "O": 89,
+      "V": 89,
+      "total": 223
+    },
+    {
+      "number": 10,
+      "P": 20,
+      "O": 91,
+      "V": 91,
+      "total": 202
+    }
+  ],
+  "request_upper_totals": {
+    "P": 284,
+    "O": 640,
+    "V": 640,
+    "total": 1564
+  },
+  "roles": {
+    "antigravity": "Apply 1 integrated v2 correction, freeze before resuming, offline tests, run development 7 paragraphs to completion (preserving originals as fallback on per-paragraph errors), inspect actual development images; if procedure works normally, fallback preservation is verified, and budget suffices, run all 10 videos under the same frozen v2 candidate (isolating per-paragraph failures), technical verification, render and prepare unreviewed holdout handoff. No final adoption verdict.",
+    "codex": "Final independent content verification, audit identity/calls/hashes/completeness (including v1 halted run + v2 run), review known development failures and fixed holdout, issue selection adoption or rejection verdict.",
+    "user": "Final article/user acceptance remains separate."
+  },
+  "acceptance": {
+    "development": "All 7 dev paragraphs evaluated (either E05 selection succeeded or safe original-preserving fallback recorded; fallback never counted as E05 selection success). Distinguish clean selection, safe fallback, incorrect deletion, and over-retention against actual text and images.",
+    "full": "All 527 paragraphs accounted for (e05_selected + fallback_preserved + no_figures); 243 no-image paragraphs unchanged; fallback_preserved paragraphs keep 100% original images; source/body/captions/PNG immutable; never report fallback_preserved as E05 selection success or claim error-free selection.",
+    "holdout": "Codex final content review of fixed 20 paragraphs; any new essential loss blocks adoption; no new sample or tuning."
+  },
+  "stop_conditions": [
+    "Per-paragraph P error, reading uncertainty, unsatisfied requirements, or V verification failure: preserve all original images as fallback_preserved, skip impossible downstream stages for that paragraph, and continue to remaining paragraphs without automatic resend or model repair/judge.",
+    "Full run proceeds after dev evaluation if the revised v2 execution pipeline operates normally, failed-paragraph original preservation is verified, and remaining campaign budget accommodates full evaluation; a single dev paragraph fallback alone does not cancel full evaluation.",
+    "Global immediate abort triggers if: identical contract/execution error repeats for 3 consecutive figure paragraphs, an un-isolatable common defect occurs, original data is altered, unverified deletion is applied, ledger/identity drifts, or campaign budget/time is exhausted.",
+    "Integrated correction is allowed at most once within E05 (v1 halted at first P call + v2 frozen candidate). No 3rd candidate or E06 even if a common defect recurs."
+  ],
+  "time_projection": {
+    "method": "sum(max observed HTTP seconds per stage * remaining uncached calls for that stage)",
+    "gate": "Before full run, compare this estimate with remaining campaign HTTP seconds. Record it as estimate, not guaranteed upper bound."
+  },
+  "constraints": [
+    "Original 1123 images are candidates; stored E02 452 keep images are comparison/tie-break data only.",
+    "No model/processor/max_pixels change, crop, tiling, OCR, new frame extraction or source/body/caption edits.",
+    "No manual asset exceptions, hardcoded correct readings, target compression ratio, automatic requirements repair or semantic fuzzy matching.",
+    "Only exact-identity completed E05 calls may be reused; all failed/invalid/unknown/preparation attempts count campaign-wide.",
+    "No R2/E06/product-default changes or git add/commit/push.",
+    "No service reset or stopping unrelated shared services. Restore only resources started for this task.",
+    "Store raw calls, manifests, frozen code/prompts/schemas, source/runtime identity, reports and derived review artifacts; never overwrite E00-E04 evidence."
+  ]
+}

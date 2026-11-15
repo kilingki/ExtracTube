@@ -1,0 +1,707 @@
+{
+  "status": "design_frozen_implementation_and_inference_not_started",
+  "experiment": "R1 E03 candidate",
+  "seed": "R1-E03-candidate-holdout-20261114-v1",
+  "baseline": "tests/revision/R1/runs/20261111_e02",
+  "baseline_manifest_sha256": "e164e1184b1a68544bddc6f94ad0d01be68409d7dbfdee8d99d15a95efce9384",
+  "baseline_report_sha256": "567dbf1a7da6317882ddfbfadad4adc13cfe3d2a971e05aabda946da4807e7f6",
+  "test_inputs_sha256": "ba7f51fd43a1a2ea825ab2f2d68b7c80a05603a8caec7a3f4be45f7ad25da8e7",
+  "prior_diagnostic_plan": "tests/revision/R1/runs/20261114_e03_audit/plan.json",
+  "prior_diagnostic_plan_sha256": "6d822c4e1847b76792fdd600e05dc183a66f406a096137d0f722f1e747dd140c",
+  "prior_label_correction": "Existing e03_audit is E02 pre-E03 diagnosis, not an E03 algorithm experiment; historical names remain unchanged.",
+  "policy": "r1.editorial_visual_selection.e03.obligation_preserving.v1",
+  "algorithm": "Immutable required visual facts, inherited coverage obligations, actual-visible-image replacement checks, independent irrelevant omission, bounded reverse two-pass selection.",
+  "development": [
+    {
+      "number": 9,
+      "paragraph_id": "u0028-p000"
+    },
+    {
+      "number": 5,
+      "paragraph_id": "u0016-p000"
+    },
+    {
+      "number": 3,
+      "paragraph_id": "u0023-p001"
+    },
+    {
+      "number": 10,
+      "paragraph_id": "u0004-p000"
+    }
+  ],
+  "population": [
+    {
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "excluded": [
+        "u0033-p000",
+        "u0036-p001",
+        "u0037-p000"
+      ],
+      "eligible": {
+        "single": 2,
+        "multi": 10
+      }
+    },
+    {
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "excluded": [
+        "u0001-p000",
+        "u0013-p000",
+        "u0015-p000",
+        "u0020-p000",
+        "u0035-p000",
+        "u0038-p000",
+        "u0047-p000"
+      ],
+      "eligible": {
+        "single": 6,
+        "multi": 45
+      }
+    },
+    {
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "excluded": [
+        "u0023-p000",
+        "u0023-p001"
+      ],
+      "eligible": {
+        "single": 14,
+        "multi": 18
+      }
+    },
+    {
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "excluded": [
+        "u0018-p001",
+        "u0035-p001"
+      ],
+      "eligible": {
+        "single": 14,
+        "multi": 34
+      }
+    },
+    {
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "excluded": [
+        "u0011-p000",
+        "u0016-p000"
+      ],
+      "eligible": {
+        "single": 8,
+        "multi": 0
+      }
+    },
+    {
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "excluded": [
+        "u0008-p000",
+        "u0013-p000"
+      ],
+      "eligible": {
+        "single": 0,
+        "multi": 24
+      }
+    },
+    {
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "excluded": [
+        "u0008-p000",
+        "u0011-p000"
+      ],
+      "eligible": {
+        "single": 4,
+        "multi": 8
+      }
+    },
+    {
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "excluded": [
+        "u0052-p000",
+        "u0056-p000"
+      ],
+      "eligible": {
+        "single": 4,
+        "multi": 7
+      }
+    },
+    {
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "excluded": [
+        "u0008-p000",
+        "u0028-p000"
+      ],
+      "eligible": {
+        "single": 6,
+        "multi": 37
+      }
+    },
+    {
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "excluded": [
+        "u0001-p000",
+        "u0001-p001",
+        "u0004-p000",
+        "u0005-p000",
+        "u0010-p000",
+        "u0011-p001"
+      ],
+      "eligible": {
+        "single": 0,
+        "multi": 14
+      }
+    }
+  ],
+  "holdout": [
+    {
+      "id": "01-u0034-p000",
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "paragraph_id": "u0034-p000",
+      "stratum": "multi",
+      "original_frames": 17,
+      "asset_ids": [
+        "CvuE-jyg-N8:v0:pts71630559",
+        "CvuE-jyg-N8:v0:pts71825754",
+        "CvuE-jyg-N8:v0:pts71840769",
+        "CvuE-jyg-N8:v0:pts71855784",
+        "CvuE-jyg-N8:v0:pts71959888",
+        "CvuE-jyg-N8:v0:pts72064993",
+        "CvuE-jyg-N8:v0:pts72125053",
+        "CvuE-jyg-N8:v0:pts72170098",
+        "CvuE-jyg-N8:v0:pts72215143",
+        "CvuE-jyg-N8:v0:pts72275203",
+        "CvuE-jyg-N8:v0:pts72335263",
+        "CvuE-jyg-N8:v0:pts72350278",
+        "CvuE-jyg-N8:v0:pts72440368",
+        "CvuE-jyg-N8:v0:pts72575503",
+        "CvuE-jyg-N8:v0:pts72710638",
+        "CvuE-jyg-N8:v0:pts72904832",
+        "CvuE-jyg-N8:v0:pts73160087"
+      ],
+      "source_indices": [
+        560,
+        561,
+        562,
+        563,
+        564,
+        565,
+        566,
+        567,
+        568,
+        569,
+        570,
+        571,
+        572,
+        573,
+        574,
+        575
+      ]
+    },
+    {
+      "id": "01-u0036-p000",
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "paragraph_id": "u0036-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "CvuE-jyg-N8:v0:pts77585508"
+      ],
+      "source_indices": [
+        594,
+        595,
+        596
+      ]
+    },
+    {
+      "id": "02-u0012-p000",
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "paragraph_id": "u0012-p000",
+      "stratum": "multi",
+      "original_frames": 3,
+      "asset_ids": [
+        "7EJ-xotXiSE:v0:pts5674669",
+        "7EJ-xotXiSE:v0:pts5959954",
+        "7EJ-xotXiSE:v0:pts6004999"
+      ],
+      "source_indices": [
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65
+      ]
+    },
+    {
+      "id": "02-u0016-p000",
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "paragraph_id": "u0016-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "7EJ-xotXiSE:v0:pts7444437"
+      ],
+      "source_indices": [
+        84,
+        85,
+        86
+      ]
+    },
+    {
+      "id": "03-u0010-p001",
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "paragraph_id": "u0010-p001",
+      "stratum": "multi",
+      "original_frames": 5,
+      "asset_ids": [
+        "Fw-8hZhnH3Q:v0:pts5311488",
+        "Fw-8hZhnH3Q:v0:pts5419008",
+        "Fw-8hZhnH3Q:v0:pts5449728",
+        "Fw-8hZhnH3Q:v0:pts5495808",
+        "Fw-8hZhnH3Q:v0:pts5664768"
+      ],
+      "source_indices": [
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76
+      ]
+    },
+    {
+      "id": "03-u0020-p000",
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "paragraph_id": "u0020-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "Fw-8hZhnH3Q:v0:pts11582464"
+      ],
+      "source_indices": [
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166
+      ]
+    },
+    {
+      "id": "04-u0021-p000",
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "paragraph_id": "u0021-p000",
+      "stratum": "multi",
+      "original_frames": 2,
+      "asset_ids": [
+        "bjDkfjSmXVo:v0:pts17735718",
+        "bjDkfjSmXVo:v0:pts17765748"
+      ],
+      "source_indices": [
+        168,
+        169,
+        170,
+        171,
+        172
+      ]
+    },
+    {
+      "id": "04-u0007-p000",
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "paragraph_id": "u0007-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "bjDkfjSmXVo:v0:pts3396393"
+      ],
+      "source_indices": [
+        27,
+        28,
+        29,
+        30
+      ]
+    },
+    {
+      "id": "05-u0014-p000",
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "paragraph_id": "u0014-p000",
+      "stratum": "single_fallback_missing_other_stratum",
+      "original_frames": 1,
+      "asset_ids": [
+        "H2WN130OzLg:v0:pts10081008"
+      ],
+      "source_indices": [
+        197,
+        198,
+        199,
+        200,
+        201,
+        202,
+        203,
+        204,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        213
+      ]
+    },
+    {
+      "id": "05-u0010-p000",
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "paragraph_id": "u0010-p000",
+      "stratum": "single_fallback_missing_other_stratum",
+      "original_frames": 1,
+      "asset_ids": [
+        "H2WN130OzLg:v0:pts7529120"
+      ],
+      "source_indices": [
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156
+      ]
+    },
+    {
+      "id": "06-u0003-p000",
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "paragraph_id": "u0003-p000",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 8,
+      "asset_ids": [
+        "iEMuJiVY9Oc:v0:pts1236480",
+        "iEMuJiVY9Oc:v0:pts1466880",
+        "iEMuJiVY9Oc:v0:pts1589760",
+        "iEMuJiVY9Oc:v0:pts1638912",
+        "iEMuJiVY9Oc:v0:pts1692672",
+        "iEMuJiVY9Oc:v0:pts1930752",
+        "iEMuJiVY9Oc:v0:pts1961472",
+        "iEMuJiVY9Oc:v0:pts2030592"
+      ],
+      "source_indices": [
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38
+      ]
+    },
+    {
+      "id": "06-u0006-p000",
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "paragraph_id": "u0006-p000",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 4,
+      "asset_ids": [
+        "iEMuJiVY9Oc:v0:pts4819456",
+        "iEMuJiVY9Oc:v0:pts4896256",
+        "iEMuJiVY9Oc:v0:pts5065216",
+        "iEMuJiVY9Oc:v0:pts5142016"
+      ],
+      "source_indices": [
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94
+      ]
+    },
+    {
+      "id": "07-u0023-p000",
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "paragraph_id": "u0023-p000",
+      "stratum": "multi",
+      "original_frames": 2,
+      "asset_ids": [
+        "hGVL9XRU9IQ:v0:pts17265248",
+        "hGVL9XRU9IQ:v0:pts17355338"
+      ],
+      "source_indices": [
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174
+      ]
+    },
+    {
+      "id": "07-u0007-p000",
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "paragraph_id": "u0007-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "hGVL9XRU9IQ:v0:pts6069063"
+      ],
+      "source_indices": [
+        55,
+        56,
+        57,
+        58
+      ]
+    },
+    {
+      "id": "08-u0049-p000",
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "paragraph_id": "u0049-p000",
+      "stratum": "multi",
+      "original_frames": 4,
+      "asset_ids": [
+        "iVelddb1qQ4:v0:pts33336303",
+        "iVelddb1qQ4:v0:pts33411378",
+        "iVelddb1qQ4:v0:pts33486453",
+        "iVelddb1qQ4:v0:pts33696663"
+      ],
+      "source_indices": [
+        253,
+        254,
+        255,
+        256,
+        257
+      ]
+    },
+    {
+      "id": "08-u0047-p000",
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "paragraph_id": "u0047-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "iVelddb1qQ4:v0:pts31585554"
+      ],
+      "source_indices": [
+        240,
+        241,
+        242,
+        243
+      ]
+    },
+    {
+      "id": "09-u0028-p001",
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "paragraph_id": "u0028-p001",
+      "stratum": "multi",
+      "original_frames": 5,
+      "asset_ids": [
+        "wFikV0Y7NIk:v0:pts59937878",
+        "wFikV0Y7NIk:v0:pts60598538",
+        "wFikV0Y7NIk:v0:pts60747687",
+        "wFikV0Y7NIk:v0:pts60807747",
+        "wFikV0Y7NIk:v0:pts61138077"
+      ],
+      "source_indices": [
+        187,
+        188,
+        189
+      ]
+    },
+    {
+      "id": "09-u0025-p001",
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "paragraph_id": "u0025-p001",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "wFikV0Y7NIk:v0:pts49047999"
+      ],
+      "source_indices": [
+        155,
+        156
+      ]
+    },
+    {
+      "id": "10-u0005-p001",
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "paragraph_id": "u0005-p001",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 10,
+      "asset_ids": [
+        "dgGhsYSVzKc:v0:pts20985965",
+        "dgGhsYSVzKc:v0:pts21226205",
+        "dgGhsYSVzKc:v0:pts21286265",
+        "dgGhsYSVzKc:v0:pts21346325",
+        "dgGhsYSVzKc:v0:pts21466445",
+        "dgGhsYSVzKc:v0:pts21855834",
+        "dgGhsYSVzKc:v0:pts22246224",
+        "dgGhsYSVzKc:v0:pts22875853",
+        "dgGhsYSVzKc:v0:pts22935913",
+        "dgGhsYSVzKc:v0:pts22995973"
+      ],
+      "source_indices": [
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79
+      ]
+    },
+    {
+      "id": "10-u0009-p000",
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "paragraph_id": "u0009-p000",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 4,
+      "asset_ids": [
+        "dgGhsYSVzKc:v0:pts38042004",
+        "dgGhsYSVzKc:v0:pts38132094",
+        "dgGhsYSVzKc:v0:pts38821783",
+        "dgGhsYSVzKc:v0:pts38971933"
+      ],
+      "source_indices": [
+        134,
+        135,
+        136,
+        137,
+        138
+      ]
+    }
+  ],
+  "holdout_actual": {
+    "paragraphs": 20,
+    "original_frames": 73,
+    "sheets": 29
+  },
+  "budget": {
+    "total_inference_calls": 660,
+    "development_and_preparation_calls": 40,
+    "full_ten_request_upper": 620,
+    "http_seconds": 10800,
+    "concurrency": 1,
+    "timeout_seconds": 300,
+    "images_per_request": 4,
+    "max_passes": 2,
+    "max_input_tokens": 12000,
+    "max_output_tokens": 4096,
+    "context_safety_tokens": 1024,
+    "additional_model_judge_calls": 0,
+    "holdout_review_paragraphs": 20,
+    "holdout_original_frames": 120,
+    "holdout_sheets": 32,
+    "holdout_zoom_views": 24,
+    "development_zoom_views": 12
+  },
+  "request_upper_by_video": [
+    {
+      "number": 1,
+      "first_pass": 45,
+      "second_pass_upper": 34
+    },
+    {
+      "number": 2,
+      "first_pass": 87,
+      "second_pass_upper": 44
+    },
+    {
+      "number": 3,
+      "first_pass": 42,
+      "second_pass_upper": 9
+    },
+    {
+      "number": 4,
+      "first_pass": 64,
+      "second_pass_upper": 19
+    },
+    {
+      "number": 5,
+      "first_pass": 10,
+      "second_pass_upper": 0
+    },
+    {
+      "number": 6,
+      "first_pass": 39,
+      "second_pass_upper": 15
+    },
+    {
+      "number": 7,
+      "first_pass": 16,
+      "second_pass_upper": 3
+    },
+    {
+      "number": 8,
+      "first_pass": 14,
+      "second_pass_upper": 1
+    },
+    {
+      "number": 9,
+      "first_pass": 57,
+      "second_pass_upper": 18
+    },
+    {
+      "number": 10,
+      "first_pass": 57,
+      "second_pass_upper": 46
+    }
+  ],
+  "scope": "Implement and run candidate on all ten original inputs; compare with saved E02, inspect development and frozen holdout excerpts; do not modify original article text or image bytes.",
+  "constraints": [
+    "No asset-ID exceptions or forced reduction ratio.",
+    "No automatic retry of unknown calls, silent budget expansion, or holdout tuning.",
+    "No R2/E04 execution or product-default adoption.",
+    "Exact prompts/schema/code/runtime identity and token dry-run must be saved by implementing agent before calls.",
+    "Human visual checks remain necessary; fact-ID coverage is not semantic proof."
+  ]
+}

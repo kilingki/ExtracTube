@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 
 from PIL import Image, ImageDraw
@@ -123,7 +124,20 @@ def make_body(entry, p, figs, context_text):
                 chat_template_kwargs={'enable_thinking':False}, response_format={'type':'json_schema',
                 'json_schema':{'name':'r1_selection','strict':True,'schema':selection_schema(len(figs))}})
 
-def call(out, body, counter, timeout=300):
+def _campaign_usage(out, include_warmup=False, extra_run_dirs=()):
+    seen_calls = {}
+    warmup_records = []
+    for run_dir in [Path(d) for d in extra_run_dirs] + [Path(out)]:
+        for p in (run_dir / 'calls').glob('*/record.json'):
+            seen_calls.setdefault(p.parent.name, read(p))
+        if include_warmup:
+            for p in (run_dir / 'warmup').glob('*/record.json'):
+                warmup_records.append(read(p))
+    total_calls = len(seen_calls) + len(warmup_records)
+    total_seconds = sum(r.get('seconds', 0) for r in seen_calls.values()) + sum(r.get('seconds', 0) for r in warmup_records)
+    return total_calls, total_seconds
+
+def call(out, body, counter, timeout=300, cap_calls=600, cap_http_seconds=10800, include_warmup=False, extra_run_dirs=()):
     key = digest({'body':body,'tokenizer':counter.identity})
     cp = out/'calls'/key
     rec = cp/'record.json'
@@ -132,19 +146,32 @@ def call(out, body, counter, timeout=300):
         if r['status'] != 'complete':
             raise RuntimeError('non-complete prior call; no automatic retry: '+str(cp))
         return read(cp/'response.json'), key
+    for src_dir in extra_run_dirs:
+        src_cp = Path(src_dir)/'calls'/key
+        src_rec = src_cp/'record.json'
+        if src_rec.exists():
+            sr = read(src_rec)
+            if sr['status'] == 'complete':
+                cp.mkdir(parents=True, exist_ok=True)
+                for fname in ('request.json', 'response.body', 'response.json', 'record.json'):
+                    if (src_cp/fname).exists():
+                        (cp/fname).write_bytes((src_cp/fname).read_bytes())
+                return read(cp/'response.json'), key
     tokens = counter.count(body)
-    previous = [read(p) for p in (out/'calls').glob('*/record.json')]
-    if len(previous)>=600 or sum(r.get('seconds',0) for r in previous)>=10800:
+    used_calls, used_seconds = _campaign_usage(out, include_warmup=include_warmup, extra_run_dirs=extra_run_dirs)
+    remaining_http = cap_http_seconds - used_seconds
+    if used_calls >= cap_calls or remaining_http <= 0:
         raise RuntimeError('campaign budget exhausted')
+    effective_timeout = min(timeout, remaining_http)
     write(cp/'request.json',body)
     record = dict(status='started', at=datetime.now(timezone.utc).isoformat(), input=tokens,
-                  request_sha256=digest(body), tokenizer=counter.identity)
+                  request_sha256=digest(body), tokenizer=counter.identity, timeout=effective_timeout)
     write(rec,record)
     start = time.monotonic()
     request = urllib.request.Request('http://127.0.0.1:8095/infer?model=qwen-vlm',
         data=json.dumps(body,ensure_ascii=False).encode(),headers={'Content-Type':'application/json'})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=effective_timeout) as response:
             raw = response.read()
         (cp/'response.body').write_bytes(raw)
         value = json.loads(raw)
@@ -159,6 +186,11 @@ def call(out, body, counter, timeout=300):
             raise ValueError(f"processor mismatch {actual} != {tokens['tokens']}")
         write(rec,record)
         return value,key
+    except urllib.error.HTTPError as exc:
+        (cp/'response.body').write_bytes(exc.read())
+        record.update(status='http_failed', http_status=exc.code, seconds=time.monotonic()-start, error=str(exc))
+        write(rec,record)
+        raise
     except Exception as exc:
         record.update(status=record.get('status') if record.get('status')!='started' else 'unknown',
                       seconds=time.monotonic()-start,error=str(exc))

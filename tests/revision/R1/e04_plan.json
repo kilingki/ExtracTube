@@ -1,0 +1,769 @@
+{
+  "status": "design_frozen_not_implemented_not_executed",
+  "experiment": "R1 E04",
+  "policy": "r1.editorial_visual_selection.e04.separated_observe_select_verify.v1",
+  "primary_hypothesis": "Source-blind visual observation, source-anchored paragraph selection, and separate evidence-blind rereading with deterministic conflict guards can reduce context-induced misreading and unsupported visual coverage without losing useful compression.",
+  "specification": "local/revision/r1_execution.md section 19",
+  "baseline": "tests/revision/R1/runs/20261111_e02",
+  "baseline_manifest_sha256": "e164e1184b1a68544bddc6f94ad0d01be68409d7dbfdee8d99d15a95efce9384",
+  "baseline_report_sha256": "567dbf1a7da6317882ddfbfadad4adc13cfe3d2a971e05aabda946da4807e7f6",
+  "test_inputs_sha256": "ba7f51fd43a1a2ea825ab2f2d68b7c80a05603a8caec7a3f4be45f7ad25da8e7",
+  "prior_e03_plan_sha256": "23071044dabca7e624eeb9e65e6641a831630d2e0336e8995f293f0e4b4a8c1a",
+  "prior_e03_codex_review_sha256": "bcbe474adb052c1115aaa1110466beb327dc2a4f2f40efb9bd1d9f687c48404b",
+  "prior_e03_runs": [
+    "tests/revision/R1/runs/20261114_e03_dev",
+    "tests/revision/R1/runs/20261114_e03_dev_v2"
+  ],
+  "development": [
+    {
+      "number": 9,
+      "paragraph_id": "u0028-p000"
+    },
+    {
+      "number": 5,
+      "paragraph_id": "u0016-p000"
+    },
+    {
+      "number": 3,
+      "paragraph_id": "u0023-p001"
+    },
+    {
+      "number": 10,
+      "paragraph_id": "u0004-p000"
+    }
+  ],
+  "holdout": [
+    {
+      "id": "01-u0034-p000",
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "paragraph_id": "u0034-p000",
+      "stratum": "multi",
+      "original_frames": 17,
+      "asset_ids": [
+        "CvuE-jyg-N8:v0:pts71630559",
+        "CvuE-jyg-N8:v0:pts71825754",
+        "CvuE-jyg-N8:v0:pts71840769",
+        "CvuE-jyg-N8:v0:pts71855784",
+        "CvuE-jyg-N8:v0:pts71959888",
+        "CvuE-jyg-N8:v0:pts72064993",
+        "CvuE-jyg-N8:v0:pts72125053",
+        "CvuE-jyg-N8:v0:pts72170098",
+        "CvuE-jyg-N8:v0:pts72215143",
+        "CvuE-jyg-N8:v0:pts72275203",
+        "CvuE-jyg-N8:v0:pts72335263",
+        "CvuE-jyg-N8:v0:pts72350278",
+        "CvuE-jyg-N8:v0:pts72440368",
+        "CvuE-jyg-N8:v0:pts72575503",
+        "CvuE-jyg-N8:v0:pts72710638",
+        "CvuE-jyg-N8:v0:pts72904832",
+        "CvuE-jyg-N8:v0:pts73160087"
+      ],
+      "source_indices": [
+        560,
+        561,
+        562,
+        563,
+        564,
+        565,
+        566,
+        567,
+        568,
+        569,
+        570,
+        571,
+        572,
+        573,
+        574,
+        575
+      ]
+    },
+    {
+      "id": "01-u0036-p000",
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "paragraph_id": "u0036-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "CvuE-jyg-N8:v0:pts77585508"
+      ],
+      "source_indices": [
+        594,
+        595,
+        596
+      ]
+    },
+    {
+      "id": "02-u0012-p000",
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "paragraph_id": "u0012-p000",
+      "stratum": "multi",
+      "original_frames": 3,
+      "asset_ids": [
+        "7EJ-xotXiSE:v0:pts5674669",
+        "7EJ-xotXiSE:v0:pts5959954",
+        "7EJ-xotXiSE:v0:pts6004999"
+      ],
+      "source_indices": [
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65
+      ]
+    },
+    {
+      "id": "02-u0016-p000",
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "paragraph_id": "u0016-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "7EJ-xotXiSE:v0:pts7444437"
+      ],
+      "source_indices": [
+        84,
+        85,
+        86
+      ]
+    },
+    {
+      "id": "03-u0010-p001",
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "paragraph_id": "u0010-p001",
+      "stratum": "multi",
+      "original_frames": 5,
+      "asset_ids": [
+        "Fw-8hZhnH3Q:v0:pts5311488",
+        "Fw-8hZhnH3Q:v0:pts5419008",
+        "Fw-8hZhnH3Q:v0:pts5449728",
+        "Fw-8hZhnH3Q:v0:pts5495808",
+        "Fw-8hZhnH3Q:v0:pts5664768"
+      ],
+      "source_indices": [
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76
+      ]
+    },
+    {
+      "id": "03-u0020-p000",
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "paragraph_id": "u0020-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "Fw-8hZhnH3Q:v0:pts11582464"
+      ],
+      "source_indices": [
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166
+      ]
+    },
+    {
+      "id": "04-u0021-p000",
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "paragraph_id": "u0021-p000",
+      "stratum": "multi",
+      "original_frames": 2,
+      "asset_ids": [
+        "bjDkfjSmXVo:v0:pts17735718",
+        "bjDkfjSmXVo:v0:pts17765748"
+      ],
+      "source_indices": [
+        168,
+        169,
+        170,
+        171,
+        172
+      ]
+    },
+    {
+      "id": "04-u0007-p000",
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "paragraph_id": "u0007-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "bjDkfjSmXVo:v0:pts3396393"
+      ],
+      "source_indices": [
+        27,
+        28,
+        29,
+        30
+      ]
+    },
+    {
+      "id": "05-u0014-p000",
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "paragraph_id": "u0014-p000",
+      "stratum": "single_fallback_missing_other_stratum",
+      "original_frames": 1,
+      "asset_ids": [
+        "H2WN130OzLg:v0:pts10081008"
+      ],
+      "source_indices": [
+        197,
+        198,
+        199,
+        200,
+        201,
+        202,
+        203,
+        204,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        213
+      ]
+    },
+    {
+      "id": "05-u0010-p000",
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "paragraph_id": "u0010-p000",
+      "stratum": "single_fallback_missing_other_stratum",
+      "original_frames": 1,
+      "asset_ids": [
+        "H2WN130OzLg:v0:pts7529120"
+      ],
+      "source_indices": [
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156
+      ]
+    },
+    {
+      "id": "06-u0003-p000",
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "paragraph_id": "u0003-p000",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 8,
+      "asset_ids": [
+        "iEMuJiVY9Oc:v0:pts1236480",
+        "iEMuJiVY9Oc:v0:pts1466880",
+        "iEMuJiVY9Oc:v0:pts1589760",
+        "iEMuJiVY9Oc:v0:pts1638912",
+        "iEMuJiVY9Oc:v0:pts1692672",
+        "iEMuJiVY9Oc:v0:pts1930752",
+        "iEMuJiVY9Oc:v0:pts1961472",
+        "iEMuJiVY9Oc:v0:pts2030592"
+      ],
+      "source_indices": [
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38
+      ]
+    },
+    {
+      "id": "06-u0006-p000",
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "paragraph_id": "u0006-p000",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 4,
+      "asset_ids": [
+        "iEMuJiVY9Oc:v0:pts4819456",
+        "iEMuJiVY9Oc:v0:pts4896256",
+        "iEMuJiVY9Oc:v0:pts5065216",
+        "iEMuJiVY9Oc:v0:pts5142016"
+      ],
+      "source_indices": [
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94
+      ]
+    },
+    {
+      "id": "07-u0023-p000",
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "paragraph_id": "u0023-p000",
+      "stratum": "multi",
+      "original_frames": 2,
+      "asset_ids": [
+        "hGVL9XRU9IQ:v0:pts17265248",
+        "hGVL9XRU9IQ:v0:pts17355338"
+      ],
+      "source_indices": [
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174
+      ]
+    },
+    {
+      "id": "07-u0007-p000",
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "paragraph_id": "u0007-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "hGVL9XRU9IQ:v0:pts6069063"
+      ],
+      "source_indices": [
+        55,
+        56,
+        57,
+        58
+      ]
+    },
+    {
+      "id": "08-u0049-p000",
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "paragraph_id": "u0049-p000",
+      "stratum": "multi",
+      "original_frames": 4,
+      "asset_ids": [
+        "iVelddb1qQ4:v0:pts33336303",
+        "iVelddb1qQ4:v0:pts33411378",
+        "iVelddb1qQ4:v0:pts33486453",
+        "iVelddb1qQ4:v0:pts33696663"
+      ],
+      "source_indices": [
+        253,
+        254,
+        255,
+        256,
+        257
+      ]
+    },
+    {
+      "id": "08-u0047-p000",
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "paragraph_id": "u0047-p000",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "iVelddb1qQ4:v0:pts31585554"
+      ],
+      "source_indices": [
+        240,
+        241,
+        242,
+        243
+      ]
+    },
+    {
+      "id": "09-u0028-p001",
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "paragraph_id": "u0028-p001",
+      "stratum": "multi",
+      "original_frames": 5,
+      "asset_ids": [
+        "wFikV0Y7NIk:v0:pts59937878",
+        "wFikV0Y7NIk:v0:pts60598538",
+        "wFikV0Y7NIk:v0:pts60747687",
+        "wFikV0Y7NIk:v0:pts60807747",
+        "wFikV0Y7NIk:v0:pts61138077"
+      ],
+      "source_indices": [
+        187,
+        188,
+        189
+      ]
+    },
+    {
+      "id": "09-u0025-p001",
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "paragraph_id": "u0025-p001",
+      "stratum": "single",
+      "original_frames": 1,
+      "asset_ids": [
+        "wFikV0Y7NIk:v0:pts49047999"
+      ],
+      "source_indices": [
+        155,
+        156
+      ]
+    },
+    {
+      "id": "10-u0005-p001",
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "paragraph_id": "u0005-p001",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 10,
+      "asset_ids": [
+        "dgGhsYSVzKc:v0:pts20985965",
+        "dgGhsYSVzKc:v0:pts21226205",
+        "dgGhsYSVzKc:v0:pts21286265",
+        "dgGhsYSVzKc:v0:pts21346325",
+        "dgGhsYSVzKc:v0:pts21466445",
+        "dgGhsYSVzKc:v0:pts21855834",
+        "dgGhsYSVzKc:v0:pts22246224",
+        "dgGhsYSVzKc:v0:pts22875853",
+        "dgGhsYSVzKc:v0:pts22935913",
+        "dgGhsYSVzKc:v0:pts22995973"
+      ],
+      "source_indices": [
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79
+      ]
+    },
+    {
+      "id": "10-u0009-p000",
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "paragraph_id": "u0009-p000",
+      "stratum": "multi_fallback_missing_other_stratum",
+      "original_frames": 4,
+      "asset_ids": [
+        "dgGhsYSVzKc:v0:pts38042004",
+        "dgGhsYSVzKc:v0:pts38132094",
+        "dgGhsYSVzKc:v0:pts38821783",
+        "dgGhsYSVzKc:v0:pts38971933"
+      ],
+      "source_indices": [
+        134,
+        135,
+        136,
+        137,
+        138
+      ]
+    }
+  ],
+  "population": [
+    {
+      "number": 1,
+      "video": "CvuE-jyg-N8",
+      "excluded": [
+        "u0033-p000",
+        "u0036-p001",
+        "u0037-p000"
+      ],
+      "eligible": {
+        "single": 2,
+        "multi": 10
+      }
+    },
+    {
+      "number": 2,
+      "video": "7EJ-xotXiSE",
+      "excluded": [
+        "u0001-p000",
+        "u0013-p000",
+        "u0015-p000",
+        "u0020-p000",
+        "u0035-p000",
+        "u0038-p000",
+        "u0047-p000"
+      ],
+      "eligible": {
+        "single": 6,
+        "multi": 45
+      }
+    },
+    {
+      "number": 3,
+      "video": "Fw-8hZhnH3Q",
+      "excluded": [
+        "u0023-p000",
+        "u0023-p001"
+      ],
+      "eligible": {
+        "single": 14,
+        "multi": 18
+      }
+    },
+    {
+      "number": 4,
+      "video": "bjDkfjSmXVo",
+      "excluded": [
+        "u0018-p001",
+        "u0035-p001"
+      ],
+      "eligible": {
+        "single": 14,
+        "multi": 34
+      }
+    },
+    {
+      "number": 5,
+      "video": "H2WN130OzLg",
+      "excluded": [
+        "u0011-p000",
+        "u0016-p000"
+      ],
+      "eligible": {
+        "single": 8,
+        "multi": 0
+      }
+    },
+    {
+      "number": 6,
+      "video": "iEMuJiVY9Oc",
+      "excluded": [
+        "u0008-p000",
+        "u0013-p000"
+      ],
+      "eligible": {
+        "single": 0,
+        "multi": 24
+      }
+    },
+    {
+      "number": 7,
+      "video": "hGVL9XRU9IQ",
+      "excluded": [
+        "u0008-p000",
+        "u0011-p000"
+      ],
+      "eligible": {
+        "single": 4,
+        "multi": 8
+      }
+    },
+    {
+      "number": 8,
+      "video": "iVelddb1qQ4",
+      "excluded": [
+        "u0052-p000",
+        "u0056-p000"
+      ],
+      "eligible": {
+        "single": 4,
+        "multi": 7
+      }
+    },
+    {
+      "number": 9,
+      "video": "wFikV0Y7NIk",
+      "excluded": [
+        "u0008-p000",
+        "u0028-p000"
+      ],
+      "eligible": {
+        "single": 6,
+        "multi": 37
+      }
+    },
+    {
+      "number": 10,
+      "video": "dgGhsYSVzKc",
+      "excluded": [
+        "u0001-p000",
+        "u0001-p001",
+        "u0004-p000",
+        "u0005-p000",
+        "u0010-p000",
+        "u0011-p001"
+      ],
+      "eligible": {
+        "single": 0,
+        "multi": 14
+      }
+    }
+  ],
+  "holdout_actual": {
+    "paragraphs": 20,
+    "original_frames": 73,
+    "sheets": 29
+  },
+  "holdout_identity_note": "Same untouched 20 paragraphs / 73 originals as E03; prior E03 development stopped before holdout inference. Only input/sample fields are inherited, not E03 algorithm or budget constraints.",
+  "stages": {
+    "observe": {
+      "images_max": 4,
+      "carry": false,
+      "source_context": false,
+      "prior_decisions": false,
+      "output": "Visible typed facts and uncertainty; no necessity/keep/omit decisions."
+    },
+    "select": {
+      "images_max": 0,
+      "calls_per_image_paragraph": 1,
+      "output": "One frozen source-anchored purpose/requirement set and joint paragraph-level selection from observations; direct final keep targets, no replacement chains."
+    },
+    "verify": {
+      "max_tasks": 2,
+      "max_images": 4,
+      "calls_per_paragraph": "ceil(original_frame_count/2)",
+      "prior_observations": false,
+      "selection_rationale": false,
+      "output": "Evidence-blind visual rereading of every original frame and direct final target, with visible typed facts and same/different/unknown comparisons only. No necessity, source interpretation, or keep/omit decisions. Runner reconciles observations and evaluates fixed selection bindings.",
+      "source_context": false
+    }
+  },
+  "model": {
+    "profile": "qwen-vlm",
+    "body_model": "qwen3.8-27b",
+    "max_pixels": 262144,
+    "temperature": 0,
+    "thinking": false,
+    "max_input_tokens": 12000,
+    "max_output_tokens": 4096,
+    "context_safety_tokens": 1024,
+    "model_or_resolution_change": false
+  },
+  "budget": {
+    "development_and_preparation_calls": 64,
+    "max_development_versions": 2,
+    "full_ten_call_upper": 1333,
+    "total_calls": 1400,
+    "http_seconds": 18000,
+    "timeout_seconds": 300,
+    "concurrency": 1,
+    "extra_retry_or_judge_calls": 0,
+    "development_original_frames": 22,
+    "development_zoom_views": 12,
+    "holdout_review_paragraphs": 20,
+    "holdout_original_frames": 120,
+    "holdout_sheets": 32,
+    "holdout_zoom_views": 24
+  },
+  "request_upper_by_video": [
+    {
+      "number": 1,
+      "observe": 38,
+      "select": 15,
+      "verify": 65
+    },
+    {
+      "number": 2,
+      "observe": 85,
+      "select": 57,
+      "verify": 139
+    },
+    {
+      "number": 3,
+      "observe": 40,
+      "select": 34,
+      "verify": 51
+    },
+    {
+      "number": 4,
+      "observe": 63,
+      "select": 50,
+      "verify": 89
+    },
+    {
+      "number": 5,
+      "observe": 10,
+      "select": 10,
+      "verify": 11
+    },
+    {
+      "number": 6,
+      "observe": 36,
+      "select": 26,
+      "verify": 63
+    },
+    {
+      "number": 7,
+      "observe": 16,
+      "select": 14,
+      "verify": 24
+    },
+    {
+      "number": 8,
+      "observe": 14,
+      "select": 13,
+      "verify": 18
+    },
+    {
+      "number": 9,
+      "observe": 57,
+      "select": 45,
+      "verify": 89
+    },
+    {
+      "number": 10,
+      "observe": 50,
+      "select": 20,
+      "verify": 91
+    }
+  ],
+  "request_upper_totals": {
+    "observe": 409,
+    "select": 284,
+    "verify": 640
+  },
+  "roles": {
+    "antigravity": "Implement, offline tests, development visual gate, freeze candidate, all-ten inference and technical verification, prepare unreviewed holdout handoff.",
+    "codex": "Final execution-artifact audit and visual quality assessment of the fixed holdout after Antigravity handoff; adoption recommendation."
+  },
+  "acceptance": {
+    "development": "Correct critical visible facts, demonstrate supported final coverage and irrelevant-metric exclusion, preserve normal UI/formula compression; no gate based on model flags alone.",
+    "all_ten": "All original inputs processed with invariant and provenance checks; no successor stages.",
+    "holdout": "Codex assesses no new essential-information loss, source-relevant image choice, redundancy improvements/normal-case preservation, and unresolved scope; unknown is not pass."
+  },
+  "constraints": [
+    "No asset/video-ID rules, fixed reduction quota, metric-specific patches, or final-text rewrites.",
+    "No crop, tiling, model replacement, higher resolution, or thinking change in this experiment.",
+    "Separate calls are not independent models; correlated mistakes remain possible and require direct Codex review.",
+    "Verify every original frame: keep, replace, omit_irrelevant, uncertain; direct target at most one and must be in proposed final keep set.",
+    "Reject deletion on unsupported coverage, conflicting observations, uncertainty, or invalid evidence; preserve original and unresolved reasons.",
+    "No iterative reselection, observation edits to justify decisions, verification-driven repair loops, or silent truncation.",
+    "No rerolling or tuning on the fixed holdout.",
+    "Freeze stage prompts/schema/component hashes, raw code snapshots and actual runtime identity before inference.",
+    "No product-default adoption, R2/E05 execution, service reconfiguration, Git add/commit/push."
+  ]
+}
