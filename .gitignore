@@ -97,3 +97,5 @@ tests/T5/work/
 /tests/revision/**/runs/
 /tests/revision/**/reviews/
 /tests/revision/**/runtime/
+
+AGENTS.md
